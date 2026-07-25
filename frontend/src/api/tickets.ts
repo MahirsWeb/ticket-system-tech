@@ -1,0 +1,57 @@
+import { apiClient } from './client';
+import type {
+  MessageType,
+  PagedResult,
+  TicketAttachmentDto,
+  TicketDetailDto,
+  TicketListItem,
+  TicketSource,
+} from '../types';
+
+export interface TicketListParams {
+  status?: string;
+  companyId?: string;
+  assignedToUserId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export const ticketsApi = {
+  create: (title: string, description: string) =>
+    apiClient.post<TicketDetailDto>('/api/tickets', { title, description }).then((r) => r.data),
+
+  list: (params: TicketListParams) =>
+    apiClient.get<PagedResult<TicketListItem>>('/api/tickets', { params }).then((r) => r.data),
+
+  getById: (id: string) => apiClient.get<TicketDetailDto>(`/api/tickets/${id}`).then((r) => r.data),
+
+  open: (
+    id: string,
+    payload: {
+      source: TicketSource;
+      helpTopicId: string;
+      departmentId: string;
+      slaPlanId: string;
+      dueDateUtc: string;
+      assignedToUserId: string;
+    }
+  ) => apiClient.post<TicketDetailDto>(`/api/tickets/${id}/open`, payload).then((r) => r.data),
+
+  close: (id: string, resolutionSummary: string, technicalNotes?: string) =>
+    apiClient.post<TicketDetailDto>(`/api/tickets/${id}/close`, { resolutionSummary, technicalNotes }).then((r) => r.data),
+
+  addMessage: (id: string, type: MessageType, bodyHtml: string) =>
+    apiClient.post(`/api/tickets/${id}/messages`, { type, bodyHtml }).then((r) => r.data),
+
+  uploadAttachments: (id: string, files: File[], messageId?: string) => {
+    const form = new FormData();
+    files.forEach((f) => form.append('files', f));
+    if (messageId) form.append('messageId', messageId);
+    return apiClient
+      .post<TicketAttachmentDto[]>(`/api/tickets/${id}/attachments`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+};

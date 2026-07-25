@@ -1,0 +1,67 @@
+namespace TicketSystemTech.Api.Emails;
+
+/// <summary>Plain, dependency-free HTML email templates, branded for Ticket System Tech.</summary>
+public static class EmailTemplates
+{
+    private static string Wrap(string title, string bodyHtml, string? buttonText = null, string? buttonUrl = null)
+    {
+        var button = buttonText is not null && buttonUrl is not null
+            ? $"""
+              <tr><td style="padding:24px 0;">
+                <a href="{buttonUrl}" style="background:#2f5ea8;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;display:inline-block;">{buttonText}</a>
+              </td></tr>
+              """
+            : "";
+
+        return $"""
+        <!doctype html>
+        <html>
+        <body style="margin:0;padding:0;background:#f2f4f7;font-family:Arial,Helvetica,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:32px 0;">
+            <tr><td align="center">
+              <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+                <tr><td style="background:#1a2b4c;padding:20px 32px;">
+                  <span style="color:#ffffff;font-size:18px;font-weight:700;">Ticket System Tech</span>
+                </td></tr>
+                <tr><td style="padding:32px;color:#222222;font-size:14px;line-height:1.6;">
+                  <h2 style="margin-top:0;color:#1a2b4c;font-size:18px;">{title}</h2>
+                  {bodyHtml}
+                </td></tr>
+                {(button != "" ? $"<tr><td style=\"padding:0 32px 32px;\">{button}</td></tr>" : "")}
+                <tr><td style="padding:16px 32px;background:#f8f9fb;color:#888888;font-size:11px;">
+                  This is an automated message from Ticket System Tech. Please do not reply directly to this email.
+                </td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
+        """;
+    }
+
+    public static string VerifyEmail(string firstName, string link) => Wrap(
+        "Verify your email address",
+        $"<p>Hi {firstName},</p><p>Thanks for setting your password. Please confirm your email address to finish activating your account.</p>",
+        "Verify email", link);
+
+    public static string ForgotPassword(string firstName, string link) => Wrap(
+        "Reset your password",
+        $"<p>Hi {firstName},</p><p>We received a request to reset your password. This link will expire shortly. If you didn't request this, you can safely ignore this email.</p>",
+        "Reset password", link);
+
+    public static string TicketOpened(string clientFirstName, string ticketNumber) => Wrap(
+        $"Your ticket #{ticketNumber} has been opened",
+        $"<p>Hi {clientFirstName},</p><p>Your support ticket <b>#{ticketNumber}</b> has been received and opened. Someone from our team will get back to you as soon as possible.</p>");
+
+    public static string TicketAssigned(string agentFirstName, string ticketNumber, string ticketTitle) => Wrap(
+        $"Ticket #{ticketNumber} assigned to you",
+        $"<p>Hi {agentFirstName},</p><p>Ticket <b>#{ticketNumber}</b> — \"{ticketTitle}\" — has been assigned to you. Please review it in the ticket system.</p>");
+
+    public static string TicketClosed(string clientFirstName, string ticketNumber, string resolvedByName) => Wrap(
+        $"Your ticket #{ticketNumber} has been resolved",
+        $"<p>Hi {clientFirstName},</p><p>Your ticket <b>#{ticketNumber}</b> has been resolved by {resolvedByName}. If you have any further questions, please don't hesitate to reach out.</p>");
+
+    public static string NewResponse(string recipientFirstName, string ticketNumber) => Wrap(
+        $"New reply on ticket #{ticketNumber}",
+        $"<p>Hi {recipientFirstName},</p><p>There is a new reply on ticket <b>#{ticketNumber}</b>. Please log in to the ticket system to view it.</p>");
+}
