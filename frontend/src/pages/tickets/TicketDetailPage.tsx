@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { OpenTicketForm } from './OpenTicketForm';
 import { CloseTicketForm } from './CloseTicketForm';
 import { MessageThread } from './MessageThread';
+import { KnowledgeBaseSearchPanel } from './KnowledgeBaseSearchPanel';
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -108,6 +109,8 @@ export default function TicketDetailPage() {
           )}
         </Card>
       )}
+
+      {canSeeInternalNotes && <KnowledgeBaseSearchPanel initialQuery={ticket.title} />}
 
       {canOpen && <OpenTicketForm ticket={ticket} onOpened={setTicket} />}
 

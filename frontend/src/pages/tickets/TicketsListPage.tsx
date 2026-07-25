@@ -40,6 +40,11 @@ export default function TicketsListPage() {
             <Button>Submit a ticket</Button>
           </Link>
         )}
+        {(user?.role === 'Admin' || user?.role === 'Consultant' || user?.role === 'SupportAgent') && (
+          <Link to="/tickets/new-on-behalf">
+            <Button>New ticket</Button>
+          </Link>
+        )}
       </div>
 
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">

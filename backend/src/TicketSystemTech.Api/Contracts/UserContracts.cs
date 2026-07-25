@@ -24,6 +24,16 @@ public record CreatedUserResponse(
     DateTime TemporaryPasswordExpiresAtUtc
 );
 
+public record ClientLookupResult(
+    Guid Id,
+    string FirstName,
+    string LastName,
+    string Email,
+    string? PhoneNumber,
+    Guid? CompanyId,
+    string? CompanyName
+);
+
 public record UserListItem(
     Guid Id,
     string FirstName,

@@ -21,6 +21,18 @@ export const ticketsApi = {
   create: (title: string, description: string) =>
     apiClient.post<TicketDetailDto>('/api/tickets', { title, description }).then((r) => r.data),
 
+  createOnBehalf: (payload: {
+    clientEmail: string;
+    title: string;
+    description: string;
+    source: TicketSource;
+    helpTopicId: string;
+    departmentId: string;
+    slaPlanId: string;
+    dueDateUtc: string;
+    assignedToUserId: string;
+  }) => apiClient.post<TicketDetailDto>('/api/tickets/on-behalf', payload).then((r) => r.data),
+
   list: (params: TicketListParams) =>
     apiClient.get<PagedResult<TicketListItem>>('/api/tickets', { params }).then((r) => r.data),
 

@@ -20,19 +20,22 @@ public class TicketsController : ControllerBase
     private readonly ITicketNumberGenerator _ticketNumberGenerator;
     private readonly IEmailSender _emailSender;
     private readonly INotificationPublisher _notificationPublisher;
+    private readonly IKnowledgeBaseIndexer _knowledgeBaseIndexer;
 
     public TicketsController(
         AppDbContext db,
         ICurrentUserService currentUser,
         ITicketNumberGenerator ticketNumberGenerator,
         IEmailSender emailSender,
-        INotificationPublisher notificationPublisher)
+        INotificationPublisher notificationPublisher,
+        IKnowledgeBaseIndexer knowledgeBaseIndexer)
     {
         _db = db;
         _currentUser = currentUser;
         _ticketNumberGenerator = ticketNumberGenerator;
         _emailSender = emailSender;
         _notificationPublisher = notificationPublisher;
+        _knowledgeBaseIndexer = knowledgeBaseIndexer;
     }
 
     [HttpPost]
@@ -70,6 +73,52 @@ public class TicketsController : ControllerBase
         }
         await _db.SaveChangesAsync();
         await _notificationPublisher.PushToRoleAsync(UserRole.Consultant, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+
+        return Ok(await BuildDetailDto(ticket.Id));
+    }
+
+    /// <summary>
+    /// Staff creates a ticket on behalf of a client who reported the issue verbally (e.g. by phone) rather
+    /// than through the client portal. The ticket is created and opened in one step, and appears exactly as
+    /// if the client had submitted it themselves.
+    /// </summary>
+    [HttpPost("on-behalf")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<TicketDetailDto>> CreateOnBehalf(CreateTicketOnBehalfRequest request)
+    {
+        var client = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == request.ClientEmail.ToUpperInvariant() && u.Role == UserRole.Client);
+        if (client is null) return NotFound(new { message = "No client account found with that email." });
+        if (client.CompanyId is null) return BadRequest(new { message = "This client is not linked to a company." });
+
+        var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
+            && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
+        if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
+
+        var ticket = new Ticket
+        {
+            TicketNumber = await _ticketNumberGenerator.NextAsync(),
+            Title = request.Title,
+            Description = request.Description,
+            ClientId = client.Id,
+            CompanyId = client.CompanyId.Value,
+            Status = TicketStatus.Open,
+            Source = request.Source,
+            HelpTopicId = request.HelpTopicId,
+            DepartmentId = request.DepartmentId,
+            SlaPlanId = request.SlaPlanId,
+            DueDateUtc = request.DueDateUtc,
+            AssignedToUserId = request.AssignedToUserId,
+            OpenedByUserId = _currentUser.UserId,
+            OpenedAtUtc = DateTime.UtcNow
+        };
+        _db.Tickets.Add(ticket);
+
+        _db.Notifications.Add(new Notification { UserId = assignee.Id, Type = NotificationType.TicketAssigned, Message = $"Ticket #{ticket.TicketNumber} assigned to you", TicketId = ticket.Id });
+        await _db.SaveChangesAsync();
+
+        await _emailSender.SendAsync(client.Email!, $"Your ticket #{ticket.TicketNumber} has been opened", EmailTemplates.TicketOpened(client.FirstName, ticket.TicketNumber));
+        await _emailSender.SendAsync(assignee.Email!, $"Ticket #{ticket.TicketNumber} assigned to you", EmailTemplates.TicketAssigned(assignee.FirstName, ticket.TicketNumber, ticket.Title));
+        await _notificationPublisher.PushToUserAsync(assignee.Id, "ticketAssigned", new { ticket.Id, ticket.TicketNumber, ticket.Title });
 
         return Ok(await BuildDetailDto(ticket.Id));
     }
@@ -202,7 +251,7 @@ public class TicketsController : ControllerBase
             EmailTemplates.TicketClosed(client.FirstName, ticket.TicketNumber, $"{closedBy.FirstName} {closedBy.LastName}"));
         await _notificationPublisher.PushToUserAsync(client.Id, "ticketClosed", new { ticket.Id, ticket.TicketNumber });
 
-        // TODO (Task 12): index this closed ticket's title/description/resolution into the knowledge base.
+        await _knowledgeBaseIndexer.IndexTicketAsync(ticket.Id);
 
         return Ok(await BuildDetailDto(id));
     }
@@ -241,6 +290,11 @@ public class TicketsController : ControllerBase
                     await _notificationPublisher.PushToUserAsync(recipient.Id, "newResponse", new { ticket.Id, ticket.TicketNumber });
                 }
             }
+        }
+
+        if (request.Type == MessageType.InternalNote)
+        {
+            await _knowledgeBaseIndexer.IndexTicketAsync(ticket.Id);
         }
 
         var author = await _db.Users.FirstAsync(u => u.Id == message.AuthorId);

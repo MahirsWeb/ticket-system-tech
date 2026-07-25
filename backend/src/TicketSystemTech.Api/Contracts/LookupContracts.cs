@@ -11,3 +11,28 @@ public record CreateCompanyRequest(
 );
 
 public record SlaPlanItem(Guid Id, string Name, int ResponseTimeHours, int ResolutionTimeHours);
+
+public record NameOnlyRequest(
+    [Required] string Name
+);
+
+public record UpdateNameRequest(
+    [Required] string Name,
+    bool IsActive
+);
+
+public record CreateSlaPlanRequest(
+    [Required] string Name,
+    [Range(1, 24 * 30)] int ResponseTimeHours,
+    [Range(1, 24 * 30)] int ResolutionTimeHours
+);
+
+public record UpdateSlaPlanRequest(
+    [Required] string Name,
+    [Range(1, 24 * 30)] int ResponseTimeHours,
+    [Range(1, 24 * 30)] int ResolutionTimeHours,
+    bool IsActive
+);
+
+public record LookupItemFull(Guid Id, string Name, bool IsActive);
+public record SlaPlanItemFull(Guid Id, string Name, int ResponseTimeHours, int ResolutionTimeHours, bool IsActive);

@@ -11,8 +11,10 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import TicketsListPage from './pages/tickets/TicketsListPage';
 import TicketDetailPage from './pages/tickets/TicketDetailPage';
 import NewTicketPage from './pages/tickets/NewTicketPage';
+import NewTicketOnBehalfPage from './pages/tickets/NewTicketOnBehalfPage';
 import UsersPage from './pages/users/UsersPage';
 import CompaniesPage from './pages/users/CompaniesPage';
+import SettingsPage from './pages/settings/SettingsPage';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -65,6 +67,22 @@ export default function App() {
               element={
                 <RequireRole roles={['Admin', 'Consultant']}>
                   <CompaniesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/tickets/new-on-behalf"
+              element={
+                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                  <NewTicketOnBehalfPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <RequireRole roles={['Admin']}>
+                  <SettingsPage />
                 </RequireRole>
               }
             />

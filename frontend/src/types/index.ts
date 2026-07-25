@@ -34,6 +34,40 @@ export interface SlaPlanItem extends LookupItem {
   resolutionTimeHours: number;
 }
 
+export interface LookupItemFull {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface SlaPlanItemFull {
+  id: string;
+  name: string;
+  responseTimeHours: number;
+  resolutionTimeHours: number;
+  isActive: boolean;
+}
+
+export interface ClientLookupResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string | null;
+  companyId: string | null;
+  companyName: string | null;
+}
+
+export interface KnowledgeBaseSearchResultDto {
+  ticketId: string;
+  ticketNumber: string;
+  title: string;
+  status: TicketStatus;
+  closedAtUtc: string | null;
+  resolutionSummary: string | null;
+  matchScore: number;
+}
+
 export interface TicketAttachmentDto {
   id: string;
   fileName: string;

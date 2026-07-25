@@ -10,6 +10,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
     { to: '/tickets', label: 'Tickets' },
     { to: '/users', label: 'Users' },
     { to: '/companies', label: 'Companies' },
+    { to: '/settings', label: 'Settings' },
   ],
   Consultant: [
     { to: '/', label: 'Dashboard' },
@@ -19,7 +20,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
   ],
   SupportAgent: [
     { to: '/', label: 'Dashboard' },
-    { to: '/tickets', label: 'My Tickets' },
+    { to: '/tickets', label: 'Tickets' },
   ],
   Client: [
     { to: '/tickets', label: 'My Tickets' },
@@ -36,10 +37,31 @@ export default function AppLayout() {
   const nav = NAV_BY_ROLE[user.role] ?? [];
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <aside className="flex w-56 flex-col bg-[#1a2b4c] text-white">
-        <div className="px-5 py-5 text-lg font-bold">Ticket System Tech</div>
-        <nav className="flex-1 px-2">
+    <div className="min-h-screen bg-slate-200">
+      <header className="border-b border-slate-300 bg-[#1a2b4c]">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+          <div className="text-lg font-bold text-white">Ticket System Tech</div>
+          <div className="flex items-center gap-4">
+            <div className="hidden text-right text-xs text-slate-300 sm:block">
+              <div className="font-semibold text-white">
+                {user.firstName} {user.lastName}
+              </div>
+              <div>{user.role}</div>
+            </div>
+            <NotificationBell />
+            <button
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-white/10"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+
+        <nav className="mx-auto flex max-w-5xl gap-1 px-4">
           {nav.map((item) => (
             <NavLink
               key={item.to}
@@ -47,8 +69,10 @@ export default function AppLayout() {
               end={item.to === '/'}
               className={({ isActive }) =>
                 clsx(
-                  'mb-1 block rounded-md px-3 py-2 text-sm font-medium',
-                  isActive ? 'bg-white/15 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  'border-b-2 px-4 py-2.5 text-sm font-semibold transition',
+                  isActive
+                    ? 'border-blue-400 bg-slate-200 text-[#1a2b4c]'
+                    : 'border-transparent text-slate-200 hover:bg-white/10 hover:text-white'
                 )
               }
             >
@@ -56,33 +80,13 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-400">
-          Signed in as
-          <div className="font-semibold text-white">
-            {user.firstName} {user.lastName}
-          </div>
-          <div>{user.role}</div>
-        </div>
-      </aside>
+      </header>
 
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-6 py-3">
-          <NotificationBell />
-          <button
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
-            className="text-sm font-medium text-slate-500 hover:text-slate-800"
-          >
-            Sign out
-          </button>
-        </header>
-        {user.role === 'Client' && <PhoneNumberBanner />}
-        <main className="flex-1 p-6">
-          <Outlet />
-        </main>
-      </div>
+      {user.role === 'Client' && <PhoneNumberBanner />}
+
+      <main className="mx-auto max-w-5xl px-4 py-6">
+        <Outlet />
+      </main>
     </div>
   );
 }

@@ -107,6 +107,27 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Looks up a Client account by email so staff can pre-fill their info when opening a ticket
+    /// on behalf of a client who called/reported the issue verbally (not through the client portal).
+    /// </summary>
+    [HttpGet("lookup-by-email")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<ClientLookupResult>> LookupByEmail([FromQuery] string email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return BadRequest(new { message = "Email is required." });
+
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user is null || user.Role != UserRole.Client)
+            return NotFound(new { message = "No client account found with that email." });
+
+        var companyName = user.CompanyId.HasValue
+            ? await _db.Companies.Where(c => c.Id == user.CompanyId).Select(c => c.Name).FirstOrDefaultAsync()
+            : null;
+
+        return Ok(new ClientLookupResult(user.Id, user.FirstName, user.LastName, user.Email!, user.PhoneNumber, user.CompanyId, companyName));
+    }
+
     [HttpPatch("me/phone")]
     [Authorize(Roles = nameof(UserRole.Client))]
     public async Task<IActionResult> SetMyPhone(SetPhoneNumberRequest request)

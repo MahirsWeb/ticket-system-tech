@@ -8,6 +8,19 @@ public record CreateTicketRequest(
     [Required] string Description
 );
 
+/// <summary>Staff creates + opens a ticket in one step on behalf of a client who reported the issue verbally (e.g. by phone).</summary>
+public record CreateTicketOnBehalfRequest(
+    [Required, EmailAddress] string ClientEmail,
+    [Required, MaxLength(300)] string Title,
+    [Required] string Description,
+    [Required] TicketSource Source,
+    [Required] Guid HelpTopicId,
+    [Required] Guid DepartmentId,
+    [Required] Guid SlaPlanId,
+    [Required] DateTime DueDateUtc,
+    [Required] Guid AssignedToUserId
+);
+
 public record OpenTicketRequest(
     [Required] TicketSource Source,
     [Required] Guid HelpTopicId,

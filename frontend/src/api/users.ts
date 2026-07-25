@@ -1,7 +1,10 @@
 import { apiClient } from './client';
-import type { CreatedUserResponse, UserListItemDto, UserRole } from '../types';
+import type { ClientLookupResult, CreatedUserResponse, UserListItemDto, UserRole } from '../types';
 
 export const usersApi = {
+  lookupByEmail: (email: string) =>
+    apiClient.get<ClientLookupResult>('/api/users/lookup-by-email', { params: { email } }).then((r) => r.data),
+
   createEmployee: (firstName: string, lastName: string, email: string, role: UserRole) =>
     apiClient.post<CreatedUserResponse>('/api/users/employees', { firstName, lastName, email, role }).then((r) => r.data),
 

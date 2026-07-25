@@ -97,6 +97,8 @@ builder.Services.AddScoped<IDateTimeProvider, DateTimeProvider>();
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<ITemporaryPasswordGenerator, TemporaryPasswordGenerator>();
 builder.Services.AddScoped<IFileStorage, LocalFileStorage>();
+builder.Services.AddScoped<IEmbeddingService, GoogleAiEmbeddingService>();
+builder.Services.AddScoped<IKnowledgeBaseIndexer, KnowledgeBaseIndexer>();
 builder.Services.AddSingleton<INotificationPublisher, SignalRNotificationPublisher>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
