@@ -28,7 +28,7 @@ public class GoogleAiEmbeddingService : IEmbeddingService
 
         try
         {
-            var url = $"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={apiKey}";
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={apiKey}";
             var response = await _httpClient.PostAsJsonAsync(url, new
             {
                 content = new { parts = new[] { new { text } } }

@@ -99,6 +99,7 @@ builder.Services.AddScoped<ITemporaryPasswordGenerator, TemporaryPasswordGenerat
 builder.Services.AddScoped<IFileStorage, LocalFileStorage>();
 builder.Services.AddScoped<IEmbeddingService, GoogleAiEmbeddingService>();
 builder.Services.AddScoped<IKnowledgeBaseIndexer, KnowledgeBaseIndexer>();
+builder.Services.AddScoped<IChatCompletionService, GeminiChatCompletionService>();
 builder.Services.AddSingleton<INotificationPublisher, SignalRNotificationPublisher>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
