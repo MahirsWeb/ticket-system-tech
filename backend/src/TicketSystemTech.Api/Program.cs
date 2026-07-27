@@ -100,6 +100,8 @@ builder.Services.AddScoped<IFileStorage, LocalFileStorage>();
 builder.Services.AddScoped<IEmbeddingService, GoogleAiEmbeddingService>();
 builder.Services.AddScoped<IKnowledgeBaseIndexer, KnowledgeBaseIndexer>();
 builder.Services.AddScoped<IChatCompletionService, GeminiChatCompletionService>();
+builder.Services.AddScoped<IEmailIntegrationService, GraphEmailIntegrationService>();
+builder.Services.Configure<MicrosoftGraphOptions>(builder.Configuration.GetSection("MicrosoftGraph"));
 builder.Services.AddSingleton<INotificationPublisher, SignalRNotificationPublisher>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();

@@ -21,6 +21,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<KnowledgeBaseDocument> KnowledgeBaseDocuments => Set<KnowledgeBaseDocument>();
     public DbSet<KnowledgeBaseChunk> KnowledgeBaseChunks => Set<KnowledgeBaseChunk>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<EmailConnection> EmailConnections => Set<EmailConnection>();
+    public DbSet<EmailTicketMark> EmailTicketMarks => Set<EmailTicketMark>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -95,6 +97,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         {
             e.HasOne(c => c.Document).WithMany(d => d.Chunks).HasForeignKey(c => c.DocumentId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(c => c.Ticket).WithMany().HasForeignKey(c => c.TicketId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EmailConnection>(e =>
+        {
+            e.HasIndex(c => c.UserId).IsUnique();
+        });
+
+        builder.Entity<EmailTicketMark>(e =>
+        {
+            e.HasIndex(m => new { m.UserId, m.MessageId }).IsUnique();
         });
     }
 }

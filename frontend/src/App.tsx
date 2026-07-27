@@ -15,6 +15,8 @@ import NewTicketOnBehalfPage from './pages/tickets/NewTicketOnBehalfPage';
 import UsersPage from './pages/users/UsersPage';
 import CompaniesPage from './pages/users/CompaniesPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import EmailsPage from './pages/emails/EmailsPage';
+import EmailCallbackPage from './pages/emails/EmailCallbackPage';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -35,6 +37,14 @@ export default function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/emails/callback"
+            element={
+              <RequireAuth>
+                <EmailCallbackPage />
+              </RequireAuth>
+            }
+          />
 
           <Route
             element={
@@ -83,6 +93,14 @@ export default function App() {
               element={
                 <RequireRole roles={['Admin']}>
                   <SettingsPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/emails"
+              element={
+                <RequireRole roles={['Consultant', 'SupportAgent']}>
+                  <EmailsPage />
                 </RequireRole>
               }
             />

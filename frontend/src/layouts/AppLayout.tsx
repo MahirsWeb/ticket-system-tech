@@ -15,12 +15,14 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
   Consultant: [
     { to: '/', label: 'Dashboard' },
     { to: '/tickets', label: 'Tickets' },
+    { to: '/emails', label: 'Emails' },
     { to: '/users', label: 'Clients' },
     { to: '/companies', label: 'Companies' },
   ],
   SupportAgent: [
     { to: '/', label: 'Dashboard' },
     { to: '/tickets', label: 'Tickets' },
+    { to: '/emails', label: 'Emails' },
   ],
   Client: [
     { to: '/tickets', label: 'My Tickets' },

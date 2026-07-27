@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
 import { ticketsApi } from '../../api/tickets';
+import { emailIntegrationApi } from '../../api/emailIntegration';
 import type { ClientLookupResult, LookupItem, SlaPlanItem, TicketSource } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
 import { RichTextEditor } from '../../components/RichTextEditor';
@@ -11,11 +12,15 @@ const SOURCES: TicketSource[] = ['Phone', 'Email', 'TicketSystem', 'Other'];
 
 export default function NewTicketOnBehalfPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromEmailMessageId = searchParams.get('fromEmail');
 
   const [email, setEmail] = useState('');
   const [client, setClient] = useState<ClientLookupResult | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [looking, setLooking] = useState(false);
+  const [prefilledFromEmail, setPrefilledFromEmail] = useState(false);
+  const [emailHasAttachments, setEmailHasAttachments] = useState(false);
 
   const [helpTopics, setHelpTopics] = useState<LookupItem[]>([]);
   const [departments, setDepartments] = useState<LookupItem[]>([]);
@@ -46,6 +51,22 @@ export default function NewTicketOnBehalfPage() {
       }
     );
   }, []);
+
+  useEffect(() => {
+    if (!fromEmailMessageId) return;
+    emailIntegrationApi.getPrefill(fromEmailMessageId).then((p) => {
+      setEmail(p.clientEmail);
+      setTitle(p.subject);
+      setDescription(p.bodyHtml);
+      setSource('Email');
+      setEmailHasAttachments(p.hasAttachments);
+      setPrefilledFromEmail(true);
+      usersApi
+        .lookupByEmail(p.clientEmail)
+        .then(setClient)
+        .catch(() => setLookupError('Could not automatically find a client account for this email — search manually below.'));
+    });
+  }, [fromEmailMessageId]);
 
   async function handleLookup(e: React.FormEvent) {
     e.preventDefault();
@@ -87,6 +108,9 @@ export default function NewTicketOnBehalfPage() {
         dueDateUtc: new Date(dueDate).toISOString(),
         assignedToUserId,
       });
+      if (fromEmailMessageId) {
+        await emailIntegrationApi.completeTicket(fromEmailMessageId, ticket.id);
+      }
       navigate(`/tickets/${ticket.id}`);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not create the ticket.');
@@ -104,6 +128,13 @@ export default function NewTicketOnBehalfPage() {
           The ticket will show up exactly as if the client had submitted it themselves.
         </p>
       </div>
+
+      {prefilledFromEmail && (
+        <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+          ✉️ Title, description and sender were pulled from the marked email.
+          {emailHasAttachments && ' Its attachments will be added to the ticket automatically once created.'}
+        </p>
+      )}
 
       <Card className="p-5">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">1. Find the client</h2>
