@@ -31,7 +31,7 @@ public class LookupsController : ControllerBase
     }
 
     [HttpPost("companies")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
     public async Task<ActionResult<LookupItem>> CreateCompany(CreateCompanyRequest request)
     {
         var company = new Company { Name = request.Name, Address = request.Address, ContactInfo = request.ContactInfo };

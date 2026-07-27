@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TicketSystemTech.Api.Contracts;
+using TicketSystemTech.Api.Emails;
 using TicketSystemTech.Application.Common.Interfaces;
 using TicketSystemTech.Application.Common.Options;
 using TicketSystemTech.Domain.Enums;
@@ -22,19 +23,25 @@ public class UsersController : ControllerBase
     private readonly ICurrentUserService _currentUser;
     private readonly ITemporaryPasswordGenerator _tempPasswordGenerator;
     private readonly TemporaryPasswordOptions _tempPasswordOptions;
+    private readonly IEmailSender _emailSender;
+    private readonly FrontendOptions _frontendOptions;
 
     public UsersController(
         UserManager<ApplicationUser> userManager,
         AppDbContext db,
         ICurrentUserService currentUser,
         ITemporaryPasswordGenerator tempPasswordGenerator,
-        IOptions<TemporaryPasswordOptions> tempPasswordOptions)
+        IOptions<TemporaryPasswordOptions> tempPasswordOptions,
+        IEmailSender emailSender,
+        IOptions<FrontendOptions> frontendOptions)
     {
         _userManager = userManager;
         _db = db;
         _currentUser = currentUser;
         _tempPasswordGenerator = tempPasswordGenerator;
         _tempPasswordOptions = tempPasswordOptions.Value;
+        _emailSender = emailSender;
+        _frontendOptions = frontendOptions.Value;
     }
 
     /// <summary>Admin-only: create Admin/Consultant/SupportAgent accounts.</summary>
@@ -48,9 +55,9 @@ public class UsersController : ControllerBase
         return await CreateUserInternal(request.FirstName, request.LastName, request.Email, request.Role, companyId: null);
     }
 
-    /// <summary>Admin or Consultant: create a Client account tied to an existing company.</summary>
+    /// <summary>Admin or staff (Consultant/SupportAgent): create a Client account tied to an existing company.</summary>
     [HttpPost("clients")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
     public async Task<ActionResult<CreatedUserResponse>> CreateClient(CreateClientRequest request)
     {
         var companyExists = await _db.Companies.AnyAsync(c => c.Id == request.CompanyId);
@@ -62,14 +69,15 @@ public class UsersController : ControllerBase
 
     /// <summary>Regenerates a fresh short-lived temporary password (e.g. if the previous one expired unused).</summary>
     [HttpPost("{id:guid}/regenerate-temp-password")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
     public async Task<ActionResult<CreatedUserResponse>> RegenerateTempPassword(Guid id)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());
         if (user is null)
             return NotFound();
 
-        if (_currentUser.Role == UserRole.Consultant && user.Role != UserRole.Client)
+        // Only Admin may reset another employee's password; non-admin staff may only reset Client passwords.
+        if (_currentUser.Role != UserRole.Admin && user.Role != UserRole.Client)
             return Forbid();
 
         var tempPassword = _tempPasswordGenerator.Generate();
@@ -85,11 +93,14 @@ public class UsersController : ControllerBase
         user.TemporaryPasswordExpiresAtUtc = DateTime.UtcNow.AddMinutes(_tempPasswordOptions.ValidityMinutes);
         await _userManager.UpdateAsync(user);
 
+        await _emailSender.SendAsync(user.Email!, "Your new temporary password — Ticket System Tech",
+            EmailTemplates.Invite(user.FirstName, user.Email!, tempPassword, _tempPasswordOptions.ValidityMinutes, $"{_frontendOptions.BaseUrl}/login"));
+
         return Ok(new CreatedUserResponse(user.Id, user.Email!, tempPassword, user.TemporaryPasswordExpiresAtUtc.Value));
     }
 
     [HttpGet]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
     public async Task<ActionResult<List<UserListItem>>> List([FromQuery] UserRole? role, [FromQuery] Guid? companyId)
     {
         var query = _userManager.Users.AsQueryable();
@@ -182,6 +193,9 @@ public class UsersController : ControllerBase
         var result = await _userManager.CreateAsync(user, tempPassword);
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
+
+        await _emailSender.SendAsync(email, "You've been invited to Ticket System Tech",
+            EmailTemplates.Invite(firstName, email, tempPassword, _tempPasswordOptions.ValidityMinutes, $"{_frontendOptions.BaseUrl}/login"));
 
         return Ok(new CreatedUserResponse(user.Id, email, tempPassword, expiresAt));
     }

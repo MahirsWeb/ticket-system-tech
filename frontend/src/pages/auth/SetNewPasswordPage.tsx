@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import { Button, Card, ErrorText, Input, Label, SuccessText } from '../../components/ui';
+import { AuthSplitLayout } from '../../layouts/AuthSplitLayout';
 
 export default function SetNewPasswordPage() {
   const location = useLocation();
@@ -37,7 +38,7 @@ export default function SetNewPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <AuthSplitLayout>
       <Card className="w-full max-w-sm p-8">
         <h1 className="mb-1 text-xl font-bold text-slate-900">Set your password</h1>
         <p className="mb-6 text-sm text-slate-500">
@@ -54,15 +55,15 @@ export default function SetNewPasswordPage() {
           </div>
           <div>
             <Label>New password</Label>
-            <Input type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <Input type="password" required minLength={10} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </div>
           <div>
             <Label>Confirm new password</Label>
-            <Input type="password" required minLength={8} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
+            <Input type="password" required minLength={10} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
           </div>
           <ErrorText>{error}</ErrorText>
           <SuccessText>{success}</SuccessText>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" variant="pill" className="w-full" disabled={loading}>
             {loading ? 'Saving…' : 'Set password'}
           </Button>
         </form>
@@ -72,6 +73,6 @@ export default function SetNewPasswordPage() {
           </Link>
         </div>
       </Card>
-    </div>
+    </AuthSplitLayout>
   );
 }

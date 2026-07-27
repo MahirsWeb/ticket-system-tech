@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import { Card, Spinner } from '../../components/ui';
+import { AuthSplitLayout } from '../../layouts/AuthSplitLayout';
 
 export default function VerifyEmailPage() {
   const [params] = useSearchParams();
@@ -30,7 +31,7 @@ export default function VerifyEmailPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <AuthSplitLayout>
       <Card className="w-full max-w-sm p-8 text-center">
         <h1 className="mb-4 text-xl font-bold text-slate-900">Email verification</h1>
         {status === 'loading' && <Spinner className="mx-auto h-8 w-8 text-blue-700" />}
@@ -41,6 +42,6 @@ export default function VerifyEmailPage() {
           Go to sign in
         </Link>
       </Card>
-    </div>
+    </AuthSplitLayout>
   );
 }

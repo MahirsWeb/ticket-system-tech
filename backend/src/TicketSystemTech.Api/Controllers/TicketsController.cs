@@ -140,8 +140,7 @@ public class TicketsController : ControllerBase
         query = _currentUser.Role switch
         {
             UserRole.Client => query.Where(t => t.ClientId == _currentUser.UserId),
-            UserRole.SupportAgent => query.Where(t => t.AssignedToUserId == _currentUser.UserId),
-            _ => query // Admin, Consultant see everything
+            _ => query // Admin, Consultant, SupportAgent all see everything
         };
 
         if (status.HasValue) query = query.Where(t => t.Status == status.Value);
@@ -188,7 +187,7 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/open")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
     public async Task<ActionResult<TicketDetailDto>> OpenTicket(Guid id, OpenTicketRequest request)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -306,7 +305,7 @@ public class TicketsController : ControllerBase
     {
         UserRole.Admin => true,
         UserRole.Consultant => true,
-        UserRole.SupportAgent => ticket.AssignedToUserId == _currentUser.UserId,
+        UserRole.SupportAgent => true,
         UserRole.Client => ticket.ClientId == _currentUser.UserId,
         _ => false
     };

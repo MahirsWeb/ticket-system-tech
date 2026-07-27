@@ -1,41 +1,69 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TicketSystemTech.Api.Contracts;
 using TicketSystemTech.Api.Emails;
 using TicketSystemTech.Application.Common.Interfaces;
 using TicketSystemTech.Application.Common.Options;
+using TicketSystemTech.Domain.Entities;
+using TicketSystemTech.Domain.Enums;
 using TicketSystemTech.Infrastructure.Identity;
+using TicketSystemTech.Infrastructure.Persistence;
 
 namespace TicketSystemTech.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ITokenService _tokenService;
     private readonly IEmailSender _emailSender;
     private readonly FrontendOptions _frontendOptions;
+    private readonly AppDbContext _db;
+    private readonly INotificationPublisher _notificationPublisher;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         ITokenService tokenService,
         IEmailSender emailSender,
-        IOptions<FrontendOptions> frontendOptions)
+        IOptions<FrontendOptions> frontendOptions,
+        AppDbContext db,
+        INotificationPublisher notificationPublisher)
     {
         _userManager = userManager;
         _tokenService = tokenService;
         _emailSender = emailSender;
         _frontendOptions = frontendOptions.Value;
+        _db = db;
+        _notificationPublisher = notificationPublisher;
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
-        if (user is null || !user.IsActive || !await _userManager.CheckPasswordAsync(user, request.Password))
+        if (user is null || !user.IsActive)
             return Unauthorized(new { message = "Invalid email or password." });
+
+        if (await _userManager.IsLockedOutAsync(user))
+        {
+            return StatusCode(423, new
+            {
+                code = "ACCOUNT_LOCKED",
+                message = "Too many failed sign-in attempts. Please try again in a few minutes, or reset your password."
+            });
+        }
+
+        if (!await _userManager.CheckPasswordAsync(user, request.Password))
+        {
+            await _userManager.AccessFailedAsync(user); // increments the failure count; locks the account out once the threshold is reached
+            return Unauthorized(new { message = "Invalid email or password." });
+        }
+        await _userManager.ResetAccessFailedCountAsync(user);
 
         if (user.MustChangePassword)
         {
@@ -84,6 +112,8 @@ public class AuthController : ControllerBase
         user.MustChangePassword = false;
         user.TemporaryPasswordExpiresAtUtc = null;
         await _userManager.UpdateAsync(user);
+
+        await NotifyAdminsOfInviteAcceptedAsync(user);
 
         // Employees are trusted on creation and skip email verification; only clients need to verify.
         if (user.Role == Domain.Enums.UserRole.Client && !user.EmailConfirmed)
@@ -149,4 +179,23 @@ public class AuthController : ControllerBase
     private static UserSummary ToSummary(ApplicationUser user) => new(
         user.Id, user.FirstName, user.LastName, user.Email!, user.Role.ToString(),
         user.CompanyId, user.PhoneNumber, user.PhoneNumberPrompted);
+
+    /// <summary>Tells every Admin that a user has just accepted their invite (set their own password for the first time).</summary>
+    private async Task NotifyAdminsOfInviteAcceptedAsync(ApplicationUser activatedUser)
+    {
+        var message = $"{activatedUser.FirstName} {activatedUser.LastName} successfully logged in via invite — role: {activatedUser.Role}.";
+
+        var admins = await _db.Users.Where(u => u.Role == UserRole.Admin && u.IsActive).ToListAsync();
+        foreach (var admin in admins)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = admin.Id,
+                Type = NotificationType.UserActivatedViaInvite,
+                Message = message
+            });
+        }
+        await _db.SaveChangesAsync();
+        await _notificationPublisher.PushToRoleAsync(UserRole.Admin, "userActivatedViaInvite", new { activatedUser.Id, activatedUser.FirstName, activatedUser.LastName, Role = activatedUser.Role.ToString() });
+    }
 }

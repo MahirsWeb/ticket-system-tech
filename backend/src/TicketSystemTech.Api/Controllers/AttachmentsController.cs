@@ -76,7 +76,7 @@ public class AttachmentsController : ControllerBase
     {
         Domain.Enums.UserRole.Admin => true,
         Domain.Enums.UserRole.Consultant => true,
-        Domain.Enums.UserRole.SupportAgent => ticket.AssignedToUserId == _currentUser.UserId,
+        Domain.Enums.UserRole.SupportAgent => true,
         Domain.Enums.UserRole.Client => ticket.ClientId == _currentUser.UserId,
         _ => false
     };

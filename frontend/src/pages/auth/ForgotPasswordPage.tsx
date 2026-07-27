@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import { Button, Card, Input, Label, SuccessText } from '../../components/ui';
+import { AuthSplitLayout } from '../../layouts/AuthSplitLayout';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -20,7 +21,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <AuthSplitLayout>
       <Card className="w-full max-w-sm p-8">
         <h1 className="mb-1 text-xl font-bold text-slate-900">Forgot password</h1>
         <p className="mb-6 text-sm text-slate-500">Enter your email and we'll send you a reset link.</p>
@@ -30,7 +31,7 @@ export default function ForgotPasswordPage() {
               <Label>Email</Label>
               <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" variant="pill" className="w-full" disabled={loading}>
               {loading ? 'Sending…' : 'Send reset link'}
             </Button>
           </form>
@@ -43,6 +44,6 @@ export default function ForgotPasswordPage() {
           </Link>
         </div>
       </Card>
-    </div>
+    </AuthSplitLayout>
   );
 }

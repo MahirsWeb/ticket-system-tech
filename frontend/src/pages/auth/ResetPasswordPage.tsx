@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import { Button, Card, ErrorText, Input, Label } from '../../components/ui';
+import { AuthSplitLayout } from '../../layouts/AuthSplitLayout';
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -33,20 +34,20 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <AuthSplitLayout>
       <Card className="w-full max-w-sm p-8">
         <h1 className="mb-6 text-xl font-bold text-slate-900">Reset your password</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label>New password</Label>
-            <Input type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoFocus />
+            <Input type="password" required minLength={10} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoFocus />
           </div>
           <div>
             <Label>Confirm new password</Label>
-            <Input type="password" required minLength={8} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
+            <Input type="password" required minLength={10} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
           </div>
           <ErrorText>{error}</ErrorText>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" variant="pill" className="w-full" disabled={loading}>
             {loading ? 'Saving…' : 'Reset password'}
           </Button>
         </form>
@@ -56,6 +57,6 @@ export default function ResetPasswordPage() {
           </Link>
         </div>
       </Card>
-    </div>
+    </AuthSplitLayout>
   );
 }

@@ -27,9 +27,7 @@ public class ReportsController : ControllerBase
     {
         var query = _db.Tickets.AsNoTracking().Where(t => t.CreatedAt >= from && t.CreatedAt <= to);
 
-        if (_currentUser.Role == UserRole.SupportAgent)
-            query = query.Where(t => t.AssignedToUserId == _currentUser.UserId);
-        else if (agentId.HasValue)
+        if (agentId.HasValue)
             query = query.Where(t => t.AssignedToUserId == agentId.Value);
 
         if (companyId.HasValue) query = query.Where(t => t.CompanyId == companyId.Value);

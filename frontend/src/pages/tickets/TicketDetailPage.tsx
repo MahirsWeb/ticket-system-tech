@@ -40,13 +40,9 @@ export default function TicketDetailPage() {
   }
   if (!ticket || !user) return <p>Ticket not found.</p>;
 
-  const canOpen = (user.role === 'Admin' || user.role === 'Consultant') && ticket.status === 'New';
-  const canClose =
-    ticket.status !== 'New' &&
-    ticket.status !== 'Closed' &&
-    (user.role === 'Admin' ||
-      user.role === 'Consultant' ||
-      (user.role === 'SupportAgent' && ticket.assignedToUserId === user.id));
+  const isStaff = user.role === 'Admin' || user.role === 'Consultant' || user.role === 'SupportAgent';
+  const canOpen = isStaff && ticket.status === 'New';
+  const canClose = isStaff && ticket.status !== 'New' && ticket.status !== 'Closed';
   const canSeeInternalNotes = user.role !== 'Client';
   const canReplyResponse = ticket.status !== 'Closed';
   const canReplyInternal = ticket.status !== 'Closed' && canSeeInternalNotes;

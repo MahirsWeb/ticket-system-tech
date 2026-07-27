@@ -39,6 +39,21 @@ public static class EmailTemplates
         """;
     }
 
+    public static string Invite(string firstName, string email, string temporaryPassword, int validityMinutes, string loginUrl) => Wrap(
+        "You've been invited to Ticket System Tech",
+        $"""
+        <p>Hi {firstName},</p>
+        <p>An account has been created for you on Ticket System Tech. Use the temporary password below to sign in
+        — you'll be asked to choose your own password right away.</p>
+        <p style="margin:20px 0;padding:14px 18px;background:#f2f4f7;border-radius:6px;font-size:13px;">
+          <b>Email:</b> {email}<br/>
+          <b>Temporary password:</b> <span style="font-family:monospace;font-size:16px;letter-spacing:1px;">{temporaryPassword}</span>
+        </p>
+        <p style="color:#b91c1c;"><b>This password expires in {validityMinutes} minutes.</b> If it expires before you use it,
+        ask whoever invited you to generate a new one.</p>
+        """,
+        "Sign in", loginUrl);
+
     public static string VerifyEmail(string firstName, string link) => Wrap(
         "Verify your email address",
         $"<p>Hi {firstName},</p><p>Thanks for setting your password. Please confirm your email address to finish activating your account.</p>",

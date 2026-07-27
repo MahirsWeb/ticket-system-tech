@@ -5,13 +5,14 @@ export function Button({
   variant = 'primary',
   className,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'pill' }) {
   const base = 'inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed';
   const variants: Record<string, string> = {
     primary: 'bg-blue-700 text-white hover:bg-blue-800',
     secondary: 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50',
     danger: 'bg-red-600 text-white hover:bg-red-700',
     ghost: 'bg-transparent text-slate-600 hover:bg-slate-100',
+    pill: 'rounded-full bg-[#1a2b4c] text-white py-3 font-semibold shadow-md hover:bg-[#24365c]',
   };
   return <button className={clsx(base, variants[variant], className)} {...props} />;
 }
@@ -25,6 +26,26 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
       )}
       {...props}
     />
+  );
+}
+
+export function IconInput({
+  icon,
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { icon: React.ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>
+      <input
+        className={clsx(
+          'w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-3.5 text-sm shadow-sm transition',
+          'focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20',
+          className
+        )}
+        {...props}
+      />
+    </div>
   );
 }
 
