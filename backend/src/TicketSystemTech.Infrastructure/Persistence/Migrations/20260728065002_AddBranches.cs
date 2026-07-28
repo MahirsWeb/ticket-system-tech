@@ -67,6 +67,24 @@ namespace TicketSystemTech.Infrastructure.Persistence.Migrations
                 WHERE "Email" = '';
                 """);
 
+            // Every existing mark just collapsed onto the same placeholder DepartmentId (00000000-...), since
+            // marks used to be scoped per-user. If two different people had marked/converted the same MessageId
+            // (e.g. during earlier testing), that now collides on (DepartmentId, MessageId). Keep the most useful
+            // row per MessageId (prefer one that was actually converted to a ticket, else the newest) and drop the
+            // rest before the unique index below is created.
+            migrationBuilder.Sql("""
+                DELETE FROM "EmailTicketMarks" t
+                USING (
+                    SELECT "Id",
+                           ROW_NUMBER() OVER (
+                               PARTITION BY "MessageId"
+                               ORDER BY ("ConvertedTicketId" IS NOT NULL) DESC, "CreatedAt" DESC
+                           ) AS rn
+                    FROM "EmailTicketMarks"
+                ) ranked
+                WHERE t."Id" = ranked."Id" AND ranked.rn > 1;
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_EmailTicketMarks_DepartmentId_MessageId",
                 table: "EmailTicketMarks",

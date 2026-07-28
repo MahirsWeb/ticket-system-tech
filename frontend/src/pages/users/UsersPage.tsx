@@ -164,8 +164,12 @@ export default function UsersPage() {
                     <Select
                       value={u.departmentId ?? ''}
                       onChange={async (e) => {
-                        await usersApi.setDepartment(u.id, e.target.value || null);
-                        refreshUsers();
+                        try {
+                          await usersApi.setDepartment(u.id, e.target.value || null);
+                          refreshUsers();
+                        } catch (err: any) {
+                          setError(err?.response?.data?.message ?? 'Could not update this user\'s branch.');
+                        }
                       }}
                       className="w-40 py-1 text-xs"
                     >
