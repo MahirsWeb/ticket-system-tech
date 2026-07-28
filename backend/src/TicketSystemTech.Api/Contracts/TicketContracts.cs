@@ -50,7 +50,13 @@ public record TicketListItem(
     string? AssignedToName,
     DateTime CreatedAt,
     DateTime? DueDateUtc,
-    DateTime? ClosedAtUtc
+    DateTime? ClosedAtUtc,
+    Guid? DepartmentId,
+    string? DepartmentName
+);
+
+public record TransferTicketBranchRequest(
+    [Required] Guid DepartmentId
 );
 
 public record PagedResult<T>(List<T> Items, int Page, int PageSize, int TotalCount);

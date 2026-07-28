@@ -7,7 +7,7 @@ public static class EmailTemplates
     {
         var button = buttonText is not null && buttonUrl is not null
             ? $"""
-              <tr><td style="padding:24px 0;">
+              <tr><td align="center" style="padding:24px 0;text-align:center;">
                 <a href="{buttonUrl}" style="background:#2f5ea8;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;display:inline-block;">{buttonText}</a>
               </td></tr>
               """
@@ -79,4 +79,12 @@ public static class EmailTemplates
     public static string NewResponse(string recipientFirstName, string ticketNumber) => Wrap(
         $"New reply on ticket #{ticketNumber}",
         $"<p>Hi {recipientFirstName},</p><p>There is a new reply on ticket <b>#{ticketNumber}</b>. Please log in to the ticket system to view it.</p>");
+
+    public static string TicketTransferred(string recipientFirstName, string ticketNumber, string ticketTitle, string fromBranch, string toBranch, string transferredByName) => Wrap(
+        $"Ticket #{ticketNumber} transferred to your branch",
+        $"""
+        <p>Hi {recipientFirstName},</p>
+        <p>Ticket <b>#{ticketNumber}</b> — "{ticketTitle}" — has been transferred from <b>{fromBranch}</b> to <b>{toBranch}</b> by {transferredByName}.
+        It is now visible to your branch.</p>
+        """);
 }

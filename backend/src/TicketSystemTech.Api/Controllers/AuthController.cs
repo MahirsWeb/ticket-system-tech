@@ -84,12 +84,12 @@ public class AuthController : ControllerBase
             return StatusCode(403, new { code = "EMAIL_NOT_VERIFIED", message = "Please verify your email address before logging in." });
         }
 
-        var (token, expiresAt) = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.FirstName, user.LastName, user.Role, user.CompanyId);
+        var (token, expiresAt) = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.FirstName, user.LastName, user.Role, user.CompanyId, user.DepartmentId);
 
         user.LastLoginAtUtc = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        return Ok(new LoginResponse(false, token, expiresAt, ToSummary(user)));
+        return Ok(new LoginResponse(false, token, expiresAt, await ToSummaryAsync(user)));
     }
 
     [HttpPost("set-new-password")]
@@ -176,9 +176,16 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Password reset successfully. You can now log in." });
     }
 
-    private static UserSummary ToSummary(ApplicationUser user) => new(
-        user.Id, user.FirstName, user.LastName, user.Email!, user.Role.ToString(),
-        user.CompanyId, user.PhoneNumber, user.PhoneNumberPrompted);
+    private async Task<UserSummary> ToSummaryAsync(ApplicationUser user)
+    {
+        string? departmentName = user.DepartmentId.HasValue
+            ? await _db.Departments.Where(d => d.Id == user.DepartmentId).Select(d => d.Name).FirstOrDefaultAsync()
+            : null;
+
+        return new UserSummary(
+            user.Id, user.FirstName, user.LastName, user.Email!, user.Role.ToString(),
+            user.CompanyId, user.PhoneNumber, user.PhoneNumberPrompted, user.DepartmentId, departmentName);
+    }
 
     /// <summary>Tells every Admin that a user has just accepted their invite (set their own password for the first time).</summary>
     private async Task NotifyAdminsOfInviteAcceptedAsync(ApplicationUser activatedUser)

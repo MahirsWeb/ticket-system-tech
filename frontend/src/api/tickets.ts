@@ -12,6 +12,7 @@ export interface TicketListParams {
   status?: string;
   companyId?: string;
   assignedToUserId?: string;
+  departmentId?: string;
   search?: string;
   page?: number;
   pageSize?: number;
@@ -52,6 +53,9 @@ export const ticketsApi = {
 
   close: (id: string, resolutionSummary: string, technicalNotes?: string) =>
     apiClient.post<TicketDetailDto>(`/api/tickets/${id}/close`, { resolutionSummary, technicalNotes }).then((r) => r.data),
+
+  transferBranch: (id: string, departmentId: string) =>
+    apiClient.post<TicketDetailDto>(`/api/tickets/${id}/transfer-branch`, { departmentId }).then((r) => r.data),
 
   addMessage: (id: string, type: MessageType, bodyHtml: string) =>
     apiClient.post(`/api/tickets/${id}/messages`, { type, bodyHtml }).then((r) => r.data),

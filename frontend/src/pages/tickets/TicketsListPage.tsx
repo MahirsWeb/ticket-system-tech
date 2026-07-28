@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ticketsApi } from '../../api/tickets';
-import type { TicketListItem, TicketStatus } from '../../types';
+import { lookupsApi } from '../../api/lookups';
+import type { DepartmentItemFull, TicketListItem, TicketStatus } from '../../types';
 import { Button, Card, Input, Select, Spinner, StatusBadge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { format } from 'date-fns';
@@ -11,23 +12,30 @@ const PAGE_SIZE = 20;
 
 export default function TicketsListPage() {
   const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'Admin';
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isAdmin) lookupsApi.departments().then(setDepartments);
+  }, [isAdmin]);
+
+  useEffect(() => {
     setLoading(true);
     ticketsApi
-      .list({ page, pageSize: PAGE_SIZE, status: status || undefined, search: search || undefined })
+      .list({ page, pageSize: PAGE_SIZE, status: status || undefined, departmentId: departmentId || undefined, search: search || undefined })
       .then((res) => {
         setItems(res.items);
         setTotalCount(res.totalCount);
       })
       .finally(() => setLoading(false));
-  }, [page, status, search]);
+  }, [page, status, departmentId, search]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -65,6 +73,18 @@ export default function TicketsListPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
+        {isAdmin && (
+          <div className="w-48">
+            <Select value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setPage(1); }}>
+              <option value="">All branches</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </Card>
 
       <Card className="overflow-hidden">
@@ -79,6 +99,7 @@ export default function TicketsListPage() {
                 <th className="px-4 py-2">#</th>
                 <th className="px-4 py-2">Title</th>
                 <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Branch</th>
                 <th className="px-4 py-2">Company</th>
                 <th className="px-4 py-2">Client</th>
                 <th className="px-4 py-2">Assigned to</th>
@@ -97,6 +118,7 @@ export default function TicketsListPage() {
                   <td className="px-4 py-2">
                     <StatusBadge status={t.status} />
                   </td>
+                  <td className="px-4 py-2 text-slate-500">{t.departmentName ?? '—'}</td>
                   <td className="px-4 py-2">{t.companyName}</td>
                   <td className="px-4 py-2">{t.clientName}</td>
                   <td className="px-4 py-2">{t.assignedToName ?? '—'}</td>
@@ -105,7 +127,7 @@ export default function TicketsListPage() {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                     No tickets found.
                   </td>
                 </tr>

@@ -33,13 +33,13 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         _logger = logger;
     }
 
-    public async Task<EmailConnectionStatus> GetStatusAsync(Guid userId, CancellationToken ct = default)
+    public async Task<EmailConnectionStatus> GetStatusAsync(Guid departmentId, CancellationToken ct = default)
     {
-        var conn = await _db.EmailConnections.AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        var conn = await _db.EmailConnections.AsNoTracking().FirstOrDefaultAsync(c => c.DepartmentId == departmentId, ct);
         return new EmailConnectionStatus(conn is not null, conn?.ConnectedEmail);
     }
 
-    public async Task<EmailConnectionStatus> ConnectAsync(Guid userId, string code, string redirectUri, CancellationToken ct = default)
+    public async Task<EmailConnectionStatus> ConnectAsync(Guid departmentId, Guid connectedByUserId, string code, string redirectUri, CancellationToken ct = default)
     {
         var form = new Dictionary<string, string>
         {
@@ -66,12 +66,13 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
             ? m.GetString()
             : meDoc.RootElement.GetProperty("userPrincipalName").GetString();
 
-        var conn = await _db.EmailConnections.FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        var conn = await _db.EmailConnections.FirstOrDefaultAsync(c => c.DepartmentId == departmentId, ct);
         if (conn is null)
         {
-            conn = new EmailConnection { UserId = userId };
+            conn = new EmailConnection { DepartmentId = departmentId };
             _db.EmailConnections.Add(conn);
         }
+        conn.ConnectedByUserId = connectedByUserId;
         conn.Provider = "Outlook";
         conn.ConnectedEmail = mail ?? "";
         conn.AccessToken = accessToken;
@@ -83,9 +84,9 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         return new EmailConnectionStatus(true, conn.ConnectedEmail);
     }
 
-    public async Task DisconnectAsync(Guid userId, CancellationToken ct = default)
+    public async Task DisconnectAsync(Guid departmentId, CancellationToken ct = default)
     {
-        var conn = await _db.EmailConnections.FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        var conn = await _db.EmailConnections.FirstOrDefaultAsync(c => c.DepartmentId == departmentId, ct);
         if (conn is not null)
         {
             _db.EmailConnections.Remove(conn);
@@ -93,14 +94,14 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         }
     }
 
-    public async Task<List<InboxMessageSummary>> ListInboxAsync(Guid userId, int take, CancellationToken ct = default)
+    public async Task<List<InboxMessageSummary>> ListInboxAsync(Guid departmentId, int take, CancellationToken ct = default)
     {
-        var conn = await GetValidConnectionAsync(userId, ct);
+        var conn = await GetValidConnectionAsync(departmentId, ct);
         var url = $"{GraphBase}/me/mailFolders/inbox/messages?$top={Math.Clamp(take, 1, 100)}" +
                   "&$select=id,subject,from,bodyPreview,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc";
         var doc = await GetGraphAsync(conn, url, ct);
 
-        var marks = await _db.EmailTicketMarks.AsNoTracking().Where(m => m.UserId == userId).ToDictionaryAsync(m => m.MessageId, ct);
+        var marks = await _db.EmailTicketMarks.AsNoTracking().Where(m => m.DepartmentId == departmentId).ToDictionaryAsync(m => m.MessageId, ct);
 
         var results = new List<InboxMessageSummary>();
         foreach (var item in doc.RootElement.GetProperty("value").EnumerateArray())
@@ -125,9 +126,9 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         return results;
     }
 
-    public async Task<InboxMessageDetail> GetMessageAsync(Guid userId, string messageId, CancellationToken ct = default)
+    public async Task<InboxMessageDetail> GetMessageAsync(Guid departmentId, string messageId, CancellationToken ct = default)
     {
-        var conn = await GetValidConnectionAsync(userId, ct);
+        var conn = await GetValidConnectionAsync(departmentId, ct);
         var url = $"{GraphBase}/me/messages/{Uri.EscapeDataString(messageId)}?$select=subject,from,body,receivedDateTime,hasAttachments";
         var doc = await GetGraphAsync(conn, url, ct);
         var root = doc.RootElement;
@@ -163,25 +164,26 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         );
     }
 
-    public async Task<bool> SetMarkedAsync(Guid userId, string messageId, bool marked, CancellationToken ct = default)
+    public async Task<bool> SetMarkedAsync(Guid departmentId, Guid markedByUserId, string messageId, bool marked, CancellationToken ct = default)
     {
-        var mark = await _db.EmailTicketMarks.FirstOrDefaultAsync(m => m.UserId == userId && m.MessageId == messageId, ct);
+        var mark = await _db.EmailTicketMarks.FirstOrDefaultAsync(m => m.DepartmentId == departmentId && m.MessageId == messageId, ct);
         if (mark is null)
         {
-            mark = new EmailTicketMark { UserId = userId, MessageId = messageId };
+            mark = new EmailTicketMark { DepartmentId = departmentId, MessageId = messageId };
             _db.EmailTicketMarks.Add(mark);
         }
         mark.IsMarked = marked;
+        mark.MarkedByUserId = markedByUserId;
         await _db.SaveChangesAsync(ct);
         return marked;
     }
 
-    public async Task MarkConvertedAsync(Guid userId, string messageId, Guid ticketId, CancellationToken ct = default)
+    public async Task MarkConvertedAsync(Guid departmentId, string messageId, Guid ticketId, CancellationToken ct = default)
     {
-        var mark = await _db.EmailTicketMarks.FirstOrDefaultAsync(m => m.UserId == userId && m.MessageId == messageId, ct);
+        var mark = await _db.EmailTicketMarks.FirstOrDefaultAsync(m => m.DepartmentId == departmentId && m.MessageId == messageId, ct);
         if (mark is null)
         {
-            mark = new EmailTicketMark { UserId = userId, MessageId = messageId };
+            mark = new EmailTicketMark { DepartmentId = departmentId, MessageId = messageId };
             _db.EmailTicketMarks.Add(mark);
         }
         mark.IsMarked = true;
@@ -189,9 +191,9 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task ImportAttachmentsToTicketAsync(Guid userId, string messageId, Guid ticketId, CancellationToken ct = default)
+    public async Task ImportAttachmentsToTicketAsync(Guid departmentId, Guid uploadedByUserId, string messageId, Guid ticketId, CancellationToken ct = default)
     {
-        var conn = await GetValidConnectionAsync(userId, ct);
+        var conn = await GetValidConnectionAsync(departmentId, ct);
         var url = $"{GraphBase}/me/messages/{Uri.EscapeDataString(messageId)}/attachments";
         var doc = await GetGraphAsync(conn, url, ct);
 
@@ -213,7 +215,7 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
                 FileUrl = fileUrl,
                 FileSizeBytes = bytes.Length,
                 ContentType = contentType,
-                UploadedByUserId = userId
+                UploadedByUserId = uploadedByUserId
             });
         }
         await _db.SaveChangesAsync(ct);
@@ -221,10 +223,10 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
 
     // ---------------- helpers ----------------
 
-    private async Task<EmailConnection> GetValidConnectionAsync(Guid userId, CancellationToken ct)
+    private async Task<EmailConnection> GetValidConnectionAsync(Guid departmentId, CancellationToken ct)
     {
-        var conn = await _db.EmailConnections.FirstOrDefaultAsync(c => c.UserId == userId, ct)
-            ?? throw new InvalidOperationException("No mailbox connected for this user.");
+        var conn = await _db.EmailConnections.FirstOrDefaultAsync(c => c.DepartmentId == departmentId, ct)
+            ?? throw new InvalidOperationException("No mailbox connected for this branch.");
 
         if (conn.AccessTokenExpiresAtUtc <= DateTime.UtcNow.AddMinutes(1))
         {

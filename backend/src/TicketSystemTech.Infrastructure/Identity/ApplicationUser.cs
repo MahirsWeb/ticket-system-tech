@@ -17,6 +17,9 @@ public class ApplicationUser : IdentityUser<Guid>
     /// <summary>Set only for Client users — the external company they belong to.</summary>
     public Guid? CompanyId { get; set; }
 
+    /// <summary>Set only for Consultant/SupportAgent users — the single branch (grana) they belong to. Admin is not scoped to a branch.</summary>
+    public Guid? DepartmentId { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAtUtc { get; set; }

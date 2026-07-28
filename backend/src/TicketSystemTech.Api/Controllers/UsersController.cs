@@ -52,7 +52,17 @@ public class UsersController : ControllerBase
         if (request.Role == UserRole.Client)
             return BadRequest(new { message = "Use POST /api/users/clients to create client accounts." });
 
-        return await CreateUserInternal(request.FirstName, request.LastName, request.Email, request.Role, companyId: null);
+        if (request.Role is UserRole.Consultant or UserRole.SupportAgent)
+        {
+            if (request.DepartmentId is null)
+                return BadRequest(new { message = "A branch must be selected for Consultant and Support Agent accounts." });
+            var departmentExists = await _db.Departments.AnyAsync(d => d.Id == request.DepartmentId.Value && d.IsActive);
+            if (!departmentExists)
+                return BadRequest(new { message = "Branch not found." });
+        }
+
+        return await CreateUserInternal(request.FirstName, request.LastName, request.Email, request.Role, companyId: null,
+            departmentId: request.Role is UserRole.Consultant or UserRole.SupportAgent ? request.DepartmentId : null);
     }
 
     /// <summary>Admin or staff (Consultant/SupportAgent): create a Client account tied to an existing company.</summary>
@@ -64,7 +74,7 @@ public class UsersController : ControllerBase
         if (!companyExists)
             return BadRequest(new { message = "Company not found." });
 
-        return await CreateUserInternal(request.FirstName, request.LastName, request.Email, UserRole.Client, request.CompanyId);
+        return await CreateUserInternal(request.FirstName, request.LastName, request.Email, UserRole.Client, request.CompanyId, departmentId: null);
     }
 
     /// <summary>Regenerates a fresh short-lived temporary password (e.g. if the previous one expired unused).</summary>
@@ -99,21 +109,51 @@ public class UsersController : ControllerBase
         return Ok(new CreatedUserResponse(user.Id, user.Email!, tempPassword, user.TemporaryPasswordExpiresAtUtc.Value));
     }
 
+    /// <summary>Admin-only: (re)assign the branch a Consultant/SupportAgent belongs to.</summary>
+    [HttpPatch("{id:guid}/department")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<IActionResult> SetDepartment(Guid id, SetUserDepartmentRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user is null) return NotFound();
+        if (user.Role is not (UserRole.Consultant or UserRole.SupportAgent))
+            return BadRequest(new { message = "Only Consultant and Support Agent accounts belong to a branch." });
+
+        if (request.DepartmentId.HasValue)
+        {
+            var departmentExists = await _db.Departments.AnyAsync(d => d.Id == request.DepartmentId.Value && d.IsActive);
+            if (!departmentExists) return BadRequest(new { message = "Branch not found." });
+        }
+
+        user.DepartmentId = request.DepartmentId;
+        await _userManager.UpdateAsync(user);
+        return Ok();
+    }
+
     [HttpGet]
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
-    public async Task<ActionResult<List<UserListItem>>> List([FromQuery] UserRole? role, [FromQuery] Guid? companyId)
+    public async Task<ActionResult<List<UserListItem>>> List([FromQuery] UserRole? role, [FromQuery] Guid? companyId, [FromQuery] Guid? departmentId)
     {
         var query = _userManager.Users.AsQueryable();
         if (role.HasValue) query = query.Where(u => u.Role == role.Value);
         if (companyId.HasValue) query = query.Where(u => u.CompanyId == companyId.Value);
+        if (departmentId.HasValue) query = query.Where(u => u.DepartmentId == departmentId.Value);
+
+        // Branches are isolated: non-admin staff only see staff members from their own branch. Clients are shared across branches.
+        if (_currentUser.Role != UserRole.Admin)
+        {
+            query = query.Where(u => u.Role == UserRole.Client || u.DepartmentId == _currentUser.DepartmentId);
+        }
 
         var users = await query.OrderBy(u => u.FirstName).ToListAsync();
         var companyNames = await _db.Companies.ToDictionaryAsync(c => c.Id, c => c.Name);
+        var departmentNames = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name);
 
         var result = users.Select(u => new UserListItem(
             u.Id, u.FirstName, u.LastName, u.Email!, u.Role.ToString(),
             u.CompanyId, u.CompanyId.HasValue && companyNames.TryGetValue(u.CompanyId.Value, out var n) ? n : null,
-            u.PhoneNumber, u.IsActive, u.EmailConfirmed, u.CreatedAtUtc)).ToList();
+            u.PhoneNumber, u.IsActive, u.EmailConfirmed, u.CreatedAtUtc,
+            u.DepartmentId, u.DepartmentId.HasValue && departmentNames.TryGetValue(u.DepartmentId.Value, out var dn) ? dn : null)).ToList();
 
         return Ok(result);
     }
@@ -166,7 +206,7 @@ public class UsersController : ControllerBase
         return Ok();
     }
 
-    private async Task<ActionResult<CreatedUserResponse>> CreateUserInternal(string firstName, string lastName, string email, UserRole role, Guid? companyId)
+    private async Task<ActionResult<CreatedUserResponse>> CreateUserInternal(string firstName, string lastName, string email, UserRole role, Guid? companyId, Guid? departmentId)
     {
         var existing = await _userManager.FindByEmailAsync(email);
         if (existing is not null)
@@ -183,6 +223,7 @@ public class UsersController : ControllerBase
             LastName = lastName,
             Role = role,
             CompanyId = companyId,
+            DepartmentId = departmentId,
             IsActive = true,
             MustChangePassword = true,
             TemporaryPasswordExpiresAtUtc = expiresAt,

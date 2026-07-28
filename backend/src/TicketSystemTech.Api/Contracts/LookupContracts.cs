@@ -21,6 +21,19 @@ public record UpdateNameRequest(
     bool IsActive
 );
 
+public record CreateDepartmentRequest(
+    [Required] string Name,
+    [Required, EmailAddress] string Email
+);
+
+public record UpdateDepartmentRequest(
+    [Required] string Name,
+    [Required, EmailAddress] string Email,
+    bool IsActive
+);
+
+public record DepartmentItemFull(Guid Id, string Name, string Email, bool IsActive);
+
 public record CreateSlaPlanRequest(
     [Required] string Name,
     [Range(1, 24 * 30)] int ResponseTimeHours,

@@ -49,35 +49,39 @@ public class LookupsController : ControllerBase
         var query = _db.Departments.AsQueryable();
         if (!includeInactive || !isAdmin) query = query.Where(d => d.IsActive);
 
-        if (isAdmin)
-        {
-            var full = await query.OrderBy(d => d.Name).Select(d => new LookupItemFull(d.Id, d.Name, d.IsActive)).ToListAsync();
-            return Ok(full);
-        }
-        var items = await query.OrderBy(d => d.Name).Select(d => new LookupItem(d.Id, d.Name)).ToListAsync();
-        return Ok(items);
+        // Every authenticated user may see branch names + emails (needed to display "your branch", pick a transfer target, etc.).
+        var full = await query.OrderBy(d => d.Name).Select(d => new DepartmentItemFull(d.Id, d.Name, d.Email, d.IsActive)).ToListAsync();
+        return Ok(full);
     }
 
     [HttpPost("departments")]
     [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<ActionResult<LookupItemFull>> CreateDepartment(NameOnlyRequest request)
+    public async Task<ActionResult<DepartmentItemFull>> CreateDepartment(CreateDepartmentRequest request)
     {
-        var entity = new Department { Name = request.Name };
+        var emailTaken = await _db.Departments.AnyAsync(d => d.Email == request.Email);
+        if (emailTaken) return Conflict(new { message = "A branch with this email already exists." });
+
+        var entity = new Department { Name = request.Name, Email = request.Email };
         _db.Departments.Add(entity);
         await _db.SaveChangesAsync();
-        return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
+        return Ok(new DepartmentItemFull(entity.Id, entity.Name, entity.Email, entity.IsActive));
     }
 
     [HttpPut("departments/{id:guid}")]
     [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<ActionResult<LookupItemFull>> UpdateDepartment(Guid id, UpdateNameRequest request)
+    public async Task<ActionResult<DepartmentItemFull>> UpdateDepartment(Guid id, UpdateDepartmentRequest request)
     {
         var entity = await _db.Departments.FindAsync(id);
         if (entity is null) return NotFound();
+
+        var emailTaken = await _db.Departments.AnyAsync(d => d.Email == request.Email && d.Id != id);
+        if (emailTaken) return Conflict(new { message = "A branch with this email already exists." });
+
         entity.Name = request.Name;
+        entity.Email = request.Email;
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync();
-        return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
+        return Ok(new DepartmentItemFull(entity.Id, entity.Name, entity.Email, entity.IsActive));
     }
 
     // ---------------- Help Topics ----------------

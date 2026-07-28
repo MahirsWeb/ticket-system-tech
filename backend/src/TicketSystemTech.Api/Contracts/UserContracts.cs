@@ -3,11 +3,16 @@ using TicketSystemTech.Domain.Enums;
 
 namespace TicketSystemTech.Api.Contracts;
 
+public record SetUserDepartmentRequest(
+    Guid? DepartmentId
+);
+
 public record CreateEmployeeRequest(
     [Required] string FirstName,
     [Required] string LastName,
     [Required, EmailAddress] string Email,
-    [Required] UserRole Role // Admin, Consultant, SupportAgent
+    [Required] UserRole Role, // Admin, Consultant, SupportAgent
+    Guid? DepartmentId // Required for Consultant/SupportAgent — the branch they belong to. Not applicable to Admin.
 );
 
 public record CreateClientRequest(
@@ -45,5 +50,7 @@ public record UserListItem(
     string? PhoneNumber,
     bool IsActive,
     bool EmailConfirmed,
-    DateTime CreatedAtUtc
+    DateTime CreatedAtUtc,
+    Guid? DepartmentId,
+    string? DepartmentName
 );

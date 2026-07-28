@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { emailIntegrationApi, type InboxMessageSummaryDto } from '../../api/emailIntegration';
 import { Button, Card, Spinner } from '../../components/ui';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuthStore } from '../../store/authStore';
 
 function buildMicrosoftAuthUrl(clientId: string, redirectUri: string, state: string) {
   const params = new URLSearchParams({
@@ -17,6 +18,7 @@ function buildMicrosoftAuthUrl(clientId: string, redirectUri: string, state: str
 }
 
 export default function EmailsPage() {
+  const user = useAuthStore((s) => s.user);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
   const [messages, setMessages] = useState<InboxMessageSummaryDto[]>([]);
@@ -70,18 +72,32 @@ export default function EmailsPage() {
     );
   }
 
+  if (!user?.departmentId) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <h1 className="mb-2 text-xl font-bold text-slate-900">Emails</h1>
+        <Card className="p-6 text-center">
+          <p className="text-sm text-slate-600">
+            You're not assigned to a branch yet. Ask an admin to assign you to one before connecting a mailbox.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   if (!connected) {
     return (
       <div className="mx-auto max-w-lg">
         <h1 className="mb-2 text-xl font-bold text-slate-900">Emails</h1>
         <Card className="p-6 text-center">
           <p className="mb-4 text-sm text-slate-600">
-            Connect your Outlook mailbox to see incoming emails here and turn them into tickets without leaving
-            this app.
+            Connect your branch's shared mailbox ({user.departmentName}) to see incoming emails here and turn them
+            into tickets. Everyone in your branch will see the same inbox and marks — sign in with the branch's own
+            mailbox account, not your personal one.
           </p>
           {error && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <Button onClick={handleConnect} disabled={connecting}>
-            {connecting ? 'Redirecting…' : '🔗 Connect Outlook'}
+            {connecting ? 'Redirecting…' : '🔗 Connect branch mailbox'}
           </Button>
         </Card>
       </div>

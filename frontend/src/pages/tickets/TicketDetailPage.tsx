@@ -7,6 +7,7 @@ import { Card, Spinner, StatusBadge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { OpenTicketForm } from './OpenTicketForm';
 import { CloseTicketForm } from './CloseTicketForm';
+import { TransferBranchForm } from './TransferBranchForm';
 import { MessageThread } from './MessageThread';
 import { KnowledgeBaseSearchPanel } from './KnowledgeBaseSearchPanel';
 
@@ -43,6 +44,7 @@ export default function TicketDetailPage() {
   const isStaff = user.role === 'Admin' || user.role === 'Consultant' || user.role === 'SupportAgent';
   const canOpen = isStaff && ticket.status === 'New';
   const canClose = isStaff && ticket.status !== 'New' && ticket.status !== 'Closed';
+  const canTransfer = isStaff && ticket.status !== 'New';
   const canSeeInternalNotes = user.role !== 'Client';
   const canReplyResponse = ticket.status !== 'Closed';
   const canReplyInternal = ticket.status !== 'Closed' && canSeeInternalNotes;
@@ -109,6 +111,7 @@ export default function TicketDetailPage() {
       {canSeeInternalNotes && <KnowledgeBaseSearchPanel initialQuery={ticket.title} />}
 
       {canOpen && <OpenTicketForm ticket={ticket} onOpened={setTicket} />}
+      {canTransfer && <TransferBranchForm ticket={ticket} onTransferred={setTicket} />}
 
       <Card className="p-5">
         {canSeeInternalNotes ? (

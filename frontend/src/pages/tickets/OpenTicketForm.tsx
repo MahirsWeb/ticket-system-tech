@@ -2,20 +2,25 @@ import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
 import { ticketsApi } from '../../api/tickets';
-import type { LookupItem, SlaPlanItem, TicketDetailDto, TicketSource } from '../../types';
+import type { DepartmentItemFull, LookupItem, SlaPlanItem, TicketDetailDto, TicketSource } from '../../types';
 import { Button, Card, ErrorText, Label, Select } from '../../components/ui';
+import { useAuthStore } from '../../store/authStore';
 
 const SOURCES: TicketSource[] = ['Phone', 'Email', 'TicketSystem', 'Other'];
 
 export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; onOpened: (t: TicketDetailDto) => void }) {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'Admin';
+
   const [helpTopics, setHelpTopics] = useState<LookupItem[]>([]);
-  const [departments, setDepartments] = useState<LookupItem[]>([]);
+  const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItem[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
 
   const [source, setSource] = useState<TicketSource>('TicketSystem');
   const [helpTopicId, setHelpTopicId] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
+  // Non-admin staff can only open tickets into their own branch; Admin may pick any branch.
+  const [departmentId, setDepartmentId] = useState(isAdmin ? '' : user?.departmentId ?? '');
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
@@ -23,23 +28,30 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      lookupsApi.helpTopics(),
-      lookupsApi.departments(),
-      lookupsApi.slaPlans(),
-      usersApi.list({ role: 'SupportAgent' }),
-      usersApi.list({ role: 'Consultant' }),
-    ]).then(([topics, depts, slas, support, consultants]) => {
+    Promise.all([lookupsApi.helpTopics(), lookupsApi.departments(), lookupsApi.slaPlans()]).then(([topics, depts, slas]) => {
       setHelpTopics(topics);
       setDepartments(depts);
       setSlaPlans(slas);
-      const merged = [...support, ...consultants].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` }));
-      setAssignees(merged);
       if (topics[0]) setHelpTopicId(topics[0].id);
-      if (depts[0]) setDepartmentId(depts[0].id);
+      if (isAdmin && depts[0]) setDepartmentId(depts[0].id);
       if (slas[0]) setSlaPlanId(slas[0].id);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!departmentId) {
+      setAssignees([]);
+      return;
+    }
+    setAssignedToUserId('');
+    Promise.all([
+      usersApi.list({ role: 'SupportAgent', departmentId }),
+      usersApi.list({ role: 'Consultant', departmentId }),
+    ]).then(([support, consultants]) => {
+      setAssignees([...support, ...consultants].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` })));
+    });
+  }, [departmentId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,14 +103,21 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
           </Select>
         </div>
         <div>
-          <Label>Department</Label>
-          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </Select>
+          <Label>Branch</Label>
+          {isAdmin ? (
+            <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">Select a branch…</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {user?.departmentName ?? 'No branch assigned'}
+            </div>
+          )}
         </div>
         <div>
           <Label>SLA plan</Label>

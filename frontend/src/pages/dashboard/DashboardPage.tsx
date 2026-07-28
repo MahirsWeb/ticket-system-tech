@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { reportsApi } from '../../api/reports';
-import type { LeaderboardEntryDto, ReportSummaryDto, TimeSeriesPointDto } from '../../types';
-import { Card, Select } from '../../components/ui';
+import { lookupsApi } from '../../api/lookups';
+import { usersApi } from '../../api/users';
+import type { BranchBreakdownEntryDto, DepartmentItemFull, LeaderboardEntryDto, ReportSummaryDto, TimeSeriesPointDto, UserListItemDto } from '../../types';
+import { Button, Card, Select } from '../../components/ui';
+import { DateRangePicker } from '../../components/DateRangePicker';
+import { useAuthStore } from '../../store/authStore';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-
-const RANGE_OPTIONS = [
-  { label: 'Last 7 days', days: 7 },
-  { label: 'Last 30 days', days: 30 },
-  { label: 'Last 90 days', days: 90 },
-  { label: 'Since start of year', days: -1 },
-];
 
 function KpiCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
@@ -22,34 +19,88 @@ function KpiCard({ label, value, accent }: { label: string; value: string | numb
 }
 
 export default function DashboardPage() {
-  const [rangeIdx, setRangeIdx] = useState(1);
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'Admin';
+
+  const [to, setTo] = useState(() => new Date());
+  const [from, setFrom] = useState(() => subDays(new Date(), 30));
+  const [departmentId, setDepartmentId] = useState('');
+  const [agentId, setAgentId] = useState('');
+
+  const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
+  const [employees, setEmployees] = useState<UserListItemDto[]>([]);
+
   const [summary, setSummary] = useState<ReportSummaryDto | null>(null);
   const [series, setSeries] = useState<TimeSeriesPointDto[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryDto[]>([]);
+  const [branchBreakdown, setBranchBreakdown] = useState<BranchBreakdownEntryDto[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    const option = RANGE_OPTIONS[rangeIdx];
-    const to = new Date();
-    const from = option.days === -1 ? new Date(to.getFullYear(), 0, 1) : subDays(to, option.days);
-    const params = { from: from.toISOString(), to: to.toISOString() };
+    if (!isAdmin) return;
+    lookupsApi.departments().then(setDepartments);
+    Promise.all([usersApi.list({ role: 'Consultant' }), usersApi.list({ role: 'SupportAgent' })]).then(([a, b]) =>
+      setEmployees([...a, ...b])
+    );
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const params = { from: from.toISOString(), to: to.toISOString(), departmentId: departmentId || undefined, agentId: agentId || undefined };
 
     reportsApi.summary(params).then(setSummary);
     reportsApi.timeSeries(params).then(setSeries);
     reportsApi.leaderboard(params).then(setLeaderboard);
-  }, [rangeIdx]);
+    if (isAdmin) reportsApi.byBranch({ from: params.from, to: params.to }).then(setBranchBreakdown);
+  }, [from, to, departmentId, agentId, isAdmin]);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await reportsApi.exportCsv({ from: from.toISOString(), to: to.toISOString(), departmentId: departmentId || undefined, agentId: agentId || undefined });
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
-        <div className="w-56">
-          <Select value={rangeIdx} onChange={(e) => setRangeIdx(Number(e.target.value))}>
-            {RANGE_OPTIONS.map((o, i) => (
-              <option key={o.label} value={i}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
+          {!isAdmin && user?.departmentName && (
+            <p className="text-xs text-slate-400">Showing data for your branch: {user.departmentName}</p>
+          )}
+          {isAdmin && <p className="text-xs text-slate-400">Global statistics across all branches</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <div className="w-48">
+              <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">All branches</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          {isAdmin && (
+            <div className="w-56">
+              <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+                <option value="">All employees</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.firstName} {e.lastName} ({e.role})
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
+          <Button variant="secondary" onClick={handleExport} disabled={exporting}>
+            {exporting ? 'Exporting…' : '⬇ Export CSV'}
+          </Button>
         </div>
       </div>
 
@@ -75,6 +126,33 @@ export default function DashboardPage() {
           </LineChart>
         </ResponsiveContainer>
       </Card>
+
+      {isAdmin && (
+        <Card className="p-5">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">By branch</h2>
+          {branchBreakdown.length === 0 && <p className="text-sm text-slate-400">No routed tickets in this period yet.</p>}
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs font-semibold uppercase text-slate-400">
+              <tr>
+                <th className="py-1">Branch</th>
+                <th className="py-1">New</th>
+                <th className="py-1">Open / In progress</th>
+                <th className="py-1">Closed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {branchBreakdown.map((b) => (
+                <tr key={b.departmentId} className="border-t border-slate-100">
+                  <td className="py-2 font-medium text-slate-800">{b.departmentName}</td>
+                  <td className="py-2">{b.totalNew}</td>
+                  <td className="py-2 text-amber-600">{b.totalOpen}</td>
+                  <td className="py-2 text-green-700">{b.totalClosed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
 
       <Card className="p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Top agents (closed tickets)</h2>

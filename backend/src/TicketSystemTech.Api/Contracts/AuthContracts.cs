@@ -22,7 +22,9 @@ public record UserSummary(
     string Role,
     Guid? CompanyId,
     string? PhoneNumber,
-    bool PhoneNumberPrompted
+    bool PhoneNumberPrompted,
+    Guid? DepartmentId,
+    string? DepartmentName
 );
 
 public record SetNewPasswordRequest(

@@ -15,6 +15,8 @@ export interface UserSummary {
   companyId: string | null;
   phoneNumber: string | null;
   phoneNumberPrompted: boolean;
+  departmentId: string | null;
+  departmentName: string | null;
 }
 
 export interface LoginResponse {
@@ -37,6 +39,13 @@ export interface SlaPlanItem extends LookupItem {
 export interface LookupItemFull {
   id: string;
   name: string;
+  isActive: boolean;
+}
+
+export interface DepartmentItemFull {
+  id: string;
+  name: string;
+  email: string;
   isActive: boolean;
 }
 
@@ -98,6 +107,8 @@ export interface TicketListItem {
   createdAt: string;
   dueDateUtc: string | null;
   closedAtUtc: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
 }
 
 export interface PagedResult<T> {
@@ -155,6 +166,8 @@ export interface UserListItemDto {
   isActive: boolean;
   emailConfirmed: boolean;
   createdAtUtc: string;
+  departmentId: string | null;
+  departmentName: string | null;
 }
 
 export interface ReportSummaryDto {
@@ -175,4 +188,12 @@ export interface LeaderboardEntryDto {
   userId: string;
   name: string;
   closedCount: number;
+}
+
+export interface BranchBreakdownEntryDto {
+  departmentId: string;
+  departmentName: string;
+  totalNew: number;
+  totalOpen: number;
+  totalClosed: number;
 }

@@ -59,13 +59,13 @@ public class TicketsController : ControllerBase
         _db.Tickets.Add(ticket);
         await _db.SaveChangesAsync();
 
-        // Notify every consultant that a new ticket needs to be triaged.
-        var consultants = await _db.Users.Where(u => u.Role == UserRole.Consultant && u.IsActive).ToListAsync();
-        foreach (var consultant in consultants)
+        // New tickets are unrouted (no branch yet), so every staff member across all branches is notified for triage.
+        var staff = await _db.Users.Where(u => (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent) && u.IsActive).ToListAsync();
+        foreach (var member in staff)
         {
             _db.Notifications.Add(new Notification
             {
-                UserId = consultant.Id,
+                UserId = member.Id,
                 Type = NotificationType.NewTicket,
                 Message = $"New ticket #{ticket.TicketNumber}: {ticket.Title}",
                 TicketId = ticket.Id
@@ -73,6 +73,7 @@ public class TicketsController : ControllerBase
         }
         await _db.SaveChangesAsync();
         await _notificationPublisher.PushToRoleAsync(UserRole.Consultant, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+        await _notificationPublisher.PushToRoleAsync(UserRole.SupportAgent, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
 
         return Ok(await BuildDetailDto(ticket.Id));
     }
@@ -90,9 +91,15 @@ public class TicketsController : ControllerBase
         if (client is null) return NotFound(new { message = "No client account found with that email." });
         if (client.CompanyId is null) return BadRequest(new { message = "This client is not linked to a company." });
 
+        // Non-admin staff can only route a ticket into their own branch; moving it elsewhere later requires an explicit transfer.
+        if (_currentUser.Role != UserRole.Admin && request.DepartmentId != _currentUser.DepartmentId)
+            return BadRequest(new { message = "You can only open tickets into your own branch." });
+
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
             && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
+        if (assignee.DepartmentId != request.DepartmentId)
+            return BadRequest(new { message = "Assignee must belong to the selected branch." });
 
         var ticket = new Ticket
         {
@@ -128,6 +135,7 @@ public class TicketsController : ControllerBase
         [FromQuery] TicketStatus? status,
         [FromQuery] Guid? companyId,
         [FromQuery] Guid? assignedToUserId,
+        [FromQuery] Guid? departmentId,
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
@@ -140,12 +148,15 @@ public class TicketsController : ControllerBase
         query = _currentUser.Role switch
         {
             UserRole.Client => query.Where(t => t.ClientId == _currentUser.UserId),
-            _ => query // Admin, Consultant, SupportAgent all see everything
+            UserRole.Admin => query, // Admin sees everything across all branches
+            // Branches are isolated: staff see unrouted (New) tickets for triage, plus tickets already routed to their own branch.
+            _ => query.Where(t => t.DepartmentId == null || t.DepartmentId == _currentUser.DepartmentId)
         };
 
         if (status.HasValue) query = query.Where(t => t.Status == status.Value);
         if (companyId.HasValue) query = query.Where(t => t.CompanyId == companyId.Value);
         if (assignedToUserId.HasValue) query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value);
+        if (departmentId.HasValue) query = query.Where(t => t.DepartmentId == departmentId.Value);
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(t => t.TicketNumber.Contains(search) || t.Title.Contains(search));
 
@@ -155,7 +166,7 @@ public class TicketsController : ControllerBase
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(t => new
             {
-                t.Id, t.TicketNumber, t.Title, t.Status, t.CompanyId, t.ClientId, t.AssignedToUserId, t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc
+                t.Id, t.TicketNumber, t.Title, t.Status, t.CompanyId, t.ClientId, t.AssignedToUserId, t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc, t.DepartmentId
             })
             .ToListAsync();
 
@@ -164,13 +175,16 @@ public class TicketsController : ControllerBase
         var users = await _db.Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FirstName + " " + u.LastName);
         var companyIds = page_.Select(t => t.CompanyId).Distinct().ToList();
         var companies = await _db.Companies.Where(c => companyIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name);
+        var departmentIds = page_.Where(t => t.DepartmentId.HasValue).Select(t => t.DepartmentId!.Value).Distinct().ToList();
+        var departments = await _db.Departments.Where(d => departmentIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name);
 
         var items = page_.Select(t => new TicketListItem(
             t.Id, t.TicketNumber, t.Title, t.Status.ToString(),
             companies.GetValueOrDefault(t.CompanyId, ""),
             users.GetValueOrDefault(t.ClientId, ""),
             t.AssignedToUserId.HasValue ? users.GetValueOrDefault(t.AssignedToUserId.Value) : null,
-            t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc
+            t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc,
+            t.DepartmentId, t.DepartmentId.HasValue ? departments.GetValueOrDefault(t.DepartmentId.Value) : null
         )).ToList();
 
         return Ok(new PagedResult<TicketListItem>(items, page, pageSize, totalCount));
@@ -194,9 +208,15 @@ public class TicketsController : ControllerBase
         if (ticket is null) return NotFound();
         if (ticket.Status != TicketStatus.New) return BadRequest(new { message = "Only new tickets can be opened." });
 
+        // Non-admin staff can only route a ticket into their own branch; moving it elsewhere later requires an explicit transfer.
+        if (_currentUser.Role != UserRole.Admin && request.DepartmentId != _currentUser.DepartmentId)
+            return BadRequest(new { message = "You can only open tickets into your own branch." });
+
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
             && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
+        if (assignee.DepartmentId != request.DepartmentId)
+            return BadRequest(new { message = "Assignee must belong to the selected branch." });
 
         ticket.Source = request.Source;
         ticket.HelpTopicId = request.HelpTopicId;
@@ -217,6 +237,63 @@ public class TicketsController : ControllerBase
         await _emailSender.SendAsync(client.Email!, $"Your ticket #{ticket.TicketNumber} has been opened", EmailTemplates.TicketOpened(client.FirstName, ticket.TicketNumber));
         await _emailSender.SendAsync(assignee.Email!, $"Ticket #{ticket.TicketNumber} assigned to you", EmailTemplates.TicketAssigned(assignee.FirstName, ticket.TicketNumber, ticket.Title));
         await _notificationPublisher.PushToUserAsync(assignee.Id, "ticketAssigned", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+
+        return Ok(await BuildDetailDto(id));
+    }
+
+    /// <summary>Moves an already-opened ticket to a different branch. Only staff with access to the ticket's current branch (or Admin) may do this. Notifies everyone in the destination branch.</summary>
+    [HttpPost("{id:guid}/transfer-branch")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<TicketDetailDto>> TransferBranch(Guid id, TransferTicketBranchRequest request)
+    {
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null) return NotFound();
+        if (!CanAccess(ticket)) return Forbid();
+        if (ticket.Status == TicketStatus.New) return BadRequest(new { message = "Open the ticket before transferring it to a branch." });
+
+        var fromDepartment = ticket.DepartmentId.HasValue
+            ? await _db.Departments.FirstOrDefaultAsync(d => d.Id == ticket.DepartmentId.Value)
+            : null;
+        var toDepartment = await _db.Departments.FirstOrDefaultAsync(d => d.Id == request.DepartmentId && d.IsActive);
+        if (toDepartment is null) return BadRequest(new { message = "Destination branch not found." });
+        if (toDepartment.Id == ticket.DepartmentId) return BadRequest(new { message = "Ticket is already in this branch." });
+
+        var transferredBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
+
+        ticket.DepartmentId = toDepartment.Id;
+        ticket.AssignedToUserId = null; // the previous assignee likely doesn't belong to the destination branch
+        _db.TicketMessages.Add(new TicketMessage
+        {
+            TicketId = ticket.Id,
+            AuthorId = transferredBy.Id,
+            Type = MessageType.InternalNote,
+            BodyHtml = $"<p>Ticket transferred from <b>{fromDepartment?.Name ?? "(unrouted)"}</b> to <b>{toDepartment.Name}</b> by {transferredBy.FirstName} {transferredBy.LastName}.</p>"
+        });
+        await _db.SaveChangesAsync();
+
+        var destinationStaff = await _db.Users
+            .Where(u => (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent) && u.DepartmentId == toDepartment.Id && u.IsActive)
+            .ToListAsync();
+
+        foreach (var member in destinationStaff)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = member.Id,
+                Type = NotificationType.TicketTransferred,
+                Message = $"Ticket #{ticket.TicketNumber} transferred to {toDepartment.Name}",
+                TicketId = ticket.Id
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        foreach (var member in destinationStaff)
+        {
+            await _emailSender.SendAsync(member.Email!, $"Ticket #{ticket.TicketNumber} transferred to your branch",
+                EmailTemplates.TicketTransferred(member.FirstName, ticket.TicketNumber, ticket.Title,
+                    fromDepartment?.Name ?? "(unrouted)", toDepartment.Name, $"{transferredBy.FirstName} {transferredBy.LastName}"));
+            await _notificationPublisher.PushToUserAsync(member.Id, "ticketTransferred", new { ticket.Id, ticket.TicketNumber, ticket.Title, Branch = toDepartment.Name });
+        }
 
         return Ok(await BuildDetailDto(id));
     }
@@ -304,8 +381,8 @@ public class TicketsController : ControllerBase
     private bool CanAccess(Ticket ticket) => _currentUser.Role switch
     {
         UserRole.Admin => true,
-        UserRole.Consultant => true,
-        UserRole.SupportAgent => true,
+        // Branches are isolated: staff can access unrouted (New) tickets for triage, plus tickets routed to their own branch.
+        UserRole.Consultant or UserRole.SupportAgent => ticket.DepartmentId == null || ticket.DepartmentId == _currentUser.DepartmentId,
         UserRole.Client => ticket.ClientId == _currentUser.UserId,
         _ => false
     };

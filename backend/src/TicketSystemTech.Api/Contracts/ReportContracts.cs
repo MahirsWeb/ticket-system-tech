@@ -11,3 +11,5 @@ public record ReportSummaryDto(
 public record TimeSeriesPointDto(DateOnly Date, int Opened, int Closed);
 
 public record LeaderboardEntryDto(Guid UserId, string Name, int ClosedCount);
+
+public record BranchBreakdownEntryDto(Guid DepartmentId, string DepartmentName, int TotalNew, int TotalOpen, int TotalClosed);

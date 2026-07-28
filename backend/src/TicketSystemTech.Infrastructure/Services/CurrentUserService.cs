@@ -44,4 +44,13 @@ public class CurrentUserService : ICurrentUserService
             return Guid.TryParse(value, out var id) ? id : null;
         }
     }
+
+    public Guid? DepartmentId
+    {
+        get
+        {
+            var value = User?.FindFirstValue("departmentId");
+            return Guid.TryParse(value, out var id) ? id : null;
+        }
+    }
 }

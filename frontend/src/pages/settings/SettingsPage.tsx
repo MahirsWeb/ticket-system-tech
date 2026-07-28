@@ -1,7 +1,113 @@
 import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
-import type { LookupItemFull, SlaPlanItemFull } from '../../types';
+import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull } from '../../types';
 import { Button, Card, ErrorText, Input, Label } from '../../components/ui';
+
+function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[]; onRefresh: () => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [editingEmail, setEditingEmail] = useState('');
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!name.trim() || !email.trim()) return;
+    try {
+      await lookupsApi.createDepartment(name.trim(), email.trim());
+      setName('');
+      setEmail('');
+      onRefresh();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not add branch.');
+    }
+  }
+
+  async function handleToggleActive(item: DepartmentItemFull) {
+    await lookupsApi.updateDepartment(item.id, item.name, item.email, !item.isActive);
+    onRefresh();
+  }
+
+  async function handleSaveEdit(item: DepartmentItemFull) {
+    if (!editingName.trim() || !editingEmail.trim()) return;
+    try {
+      await lookupsApi.updateDepartment(item.id, editingName.trim(), editingEmail.trim(), item.isActive);
+      setEditingId(null);
+      onRefresh();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not update branch.');
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Branches</h2>
+      <p className="mb-4 text-xs text-slate-400">
+        Every branch needs a dedicated email address. Employees are assigned to exactly one branch; tickets and
+        emails are isolated to that branch.
+      </p>
+      <form onSubmit={handleCreate} className="mb-4 flex flex-wrap gap-2">
+        <Input placeholder="Branch name (e.g. Servis)" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs" />
+        <Input
+          type="email"
+          placeholder="Branch email (e.g. servis@firma.ba)"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="max-w-xs"
+        />
+        <Button type="submit">Add</Button>
+      </form>
+      <ErrorText>{error}</ErrorText>
+      <ul className="divide-y divide-slate-100">
+        {items.map((item) => (
+          <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+            {editingId === item.id ? (
+              <div className="flex flex-1 gap-2">
+                <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
+                <Input type="email" value={editingEmail} onChange={(e) => setEditingEmail(e.target.value)} className="max-w-xs" />
+              </div>
+            ) : (
+              <span className={item.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}>
+                {item.name} <span className="text-xs text-slate-400">— {item.email}</span>
+              </span>
+            )}
+            <div className="flex shrink-0 gap-2 text-xs">
+              {editingId === item.id ? (
+                <>
+                  <button className="font-medium text-blue-700 hover:underline" onClick={() => handleSaveEdit(item)}>
+                    Save
+                  </button>
+                  <button className="text-slate-500 hover:underline" onClick={() => setEditingId(null)}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="font-medium text-blue-700 hover:underline"
+                    onClick={() => {
+                      setEditingId(item.id);
+                      setEditingName(item.name);
+                      setEditingEmail(item.email);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button className="text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
+                    {item.isActive ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                </>
+              )}
+            </div>
+          </li>
+        ))}
+        {items.length === 0 && <li className="py-4 text-center text-sm text-slate-400">No branches yet.</li>}
+      </ul>
+    </Card>
+  );
+}
 
 function SimpleLookupSection({
   title,
@@ -157,7 +263,7 @@ function SlaPlansSection({ items, onRefresh }: { items: SlaPlanItemFull[]; onRef
 }
 
 export default function SettingsPage() {
-  const [departments, setDepartments] = useState<LookupItemFull[]>([]);
+  const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [helpTopics, setHelpTopics] = useState<LookupItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItemFull[]>([]);
 
@@ -184,13 +290,7 @@ export default function SettingsPage() {
         Manage the dropdown values agents choose from when opening a ticket. Only Admins can change these.
       </p>
 
-      <SimpleLookupSection
-        title="Departments"
-        items={departments}
-        onRefresh={refreshDepartments}
-        onCreate={lookupsApi.createDepartment}
-        onUpdate={lookupsApi.updateDepartment}
-      />
+      <DepartmentsSection items={departments} onRefresh={refreshDepartments} />
       <SimpleLookupSection
         title="Help Topics"
         items={helpTopics}

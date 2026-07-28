@@ -19,7 +19,7 @@ public class JwtTokenService : ITokenService
         _options = options.Value;
     }
 
-    public (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(Guid userId, string email, string firstName, string lastName, UserRole role, Guid? companyId)
+    public (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(Guid userId, string email, string firstName, string lastName, UserRole role, Guid? companyId, Guid? departmentId)
     {
         var expiresAt = DateTime.UtcNow.AddMinutes(_options.AccessTokenMinutes);
 
@@ -33,6 +33,8 @@ public class JwtTokenService : ITokenService
         };
         if (companyId.HasValue)
             claims.Add(new Claim("companyId", companyId.Value.ToString()));
+        if (departmentId.HasValue)
+            claims.Add(new Claim("departmentId", departmentId.Value.ToString()));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

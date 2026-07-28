@@ -36,6 +36,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.Property(u => u.LastName).HasMaxLength(100).IsRequired();
             e.HasIndex(u => u.CompanyId);
             e.HasIndex(u => u.Role);
+            e.HasIndex(u => u.DepartmentId);
+            e.HasOne<Department>().WithMany().HasForeignKey(u => u.DepartmentId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Company>(e =>
@@ -46,6 +48,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<Department>(e =>
         {
             e.Property(d => d.Name).HasMaxLength(150).IsRequired();
+            e.Property(d => d.Email).HasMaxLength(256).IsRequired();
+            e.HasIndex(d => d.Email).IsUnique();
         });
 
         builder.Entity<HelpTopic>(e =>
@@ -68,6 +72,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasIndex(t => t.AssignedToUserId);
             e.HasIndex(t => t.ClientId);
             e.HasIndex(t => t.CreatedAt);
+            e.HasIndex(t => t.DepartmentId);
 
             e.HasOne(t => t.Company).WithMany().HasForeignKey(t => t.CompanyId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.HelpTopic).WithMany().HasForeignKey(t => t.HelpTopicId).OnDelete(DeleteBehavior.SetNull);
@@ -101,12 +106,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
         builder.Entity<EmailConnection>(e =>
         {
-            e.HasIndex(c => c.UserId).IsUnique();
+            e.HasIndex(c => c.DepartmentId).IsUnique();
         });
 
         builder.Entity<EmailTicketMark>(e =>
         {
-            e.HasIndex(m => new { m.UserId, m.MessageId }).IsUnique();
+            e.HasIndex(m => new { m.DepartmentId, m.MessageId }).IsUnique();
         });
     }
 }

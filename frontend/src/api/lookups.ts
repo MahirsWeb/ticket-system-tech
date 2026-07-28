@@ -1,17 +1,19 @@
 import { apiClient } from './client';
-import type { LookupItem, LookupItemFull, SlaPlanItem, SlaPlanItemFull } from '../types';
+import type { DepartmentItemFull, LookupItem, LookupItemFull, SlaPlanItem, SlaPlanItemFull } from '../types';
 
 export const lookupsApi = {
   companies: () => apiClient.get<LookupItem[]>('/api/companies').then((r) => r.data),
   createCompany: (name: string, address?: string, contactInfo?: string) =>
     apiClient.post<LookupItem>('/api/companies', { name, address, contactInfo }).then((r) => r.data),
 
-  departments: () => apiClient.get<LookupItem[]>('/api/departments').then((r) => r.data),
+  // Branches (grane) — every authenticated user gets name + email; includeInactive is admin-only.
+  departments: () => apiClient.get<DepartmentItemFull[]>('/api/departments').then((r) => r.data),
   departmentsAdmin: () =>
-    apiClient.get<LookupItemFull[]>('/api/departments', { params: { includeInactive: true } }).then((r) => r.data),
-  createDepartment: (name: string) => apiClient.post<LookupItemFull>('/api/departments', { name }).then((r) => r.data),
-  updateDepartment: (id: string, name: string, isActive: boolean) =>
-    apiClient.put<LookupItemFull>(`/api/departments/${id}`, { name, isActive }).then((r) => r.data),
+    apiClient.get<DepartmentItemFull[]>('/api/departments', { params: { includeInactive: true } }).then((r) => r.data),
+  createDepartment: (name: string, email: string) =>
+    apiClient.post<DepartmentItemFull>('/api/departments', { name, email }).then((r) => r.data),
+  updateDepartment: (id: string, name: string, email: string, isActive: boolean) =>
+    apiClient.put<DepartmentItemFull>(`/api/departments/${id}`, { name, email, isActive }).then((r) => r.data),
 
   helpTopics: () => apiClient.get<LookupItem[]>('/api/help-topics').then((r) => r.data),
   helpTopicsAdmin: () =>

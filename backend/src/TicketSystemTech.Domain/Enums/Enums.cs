@@ -39,5 +39,6 @@ public enum NotificationType
     TicketClosed = 3,
     NewResponse = 4,
     SlaDueSoon = 5,
-    UserActivatedViaInvite = 6
+    UserActivatedViaInvite = 6,
+    TicketTransferred = 7
 }

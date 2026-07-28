@@ -9,8 +9,9 @@ using TicketSystemTech.Domain.Enums;
 namespace TicketSystemTech.Api.Controllers;
 
 /// <summary>
-/// Lets staff (Consultant/SupportAgent only — not Admin) connect their own Outlook mailbox and triage
-/// inbound emails into tickets. Admin is intentionally excluded per product requirements.
+/// Lets staff (Consultant/SupportAgent only — not Admin) connect and triage their branch's shared mailbox
+/// (e.g. servis@firma.ba) into tickets. Every staff member in the branch sees the same inbox and marks.
+/// Admin is intentionally excluded per product requirements.
 /// </summary>
 [ApiController]
 [Route("api/email-integration")]
@@ -35,67 +36,73 @@ public class EmailIntegrationController : ControllerBase
     [HttpGet("status")]
     public async Task<ActionResult<EmailConnectionStatusDto>> GetStatus()
     {
-        var status = await _emailService.GetStatusAsync(_currentUser.UserId!.Value);
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
+        var status = await _emailService.GetStatusAsync(_currentUser.DepartmentId!.Value);
         return Ok(new EmailConnectionStatusDto(status.Connected, status.ConnectedEmail));
     }
 
     [HttpPost("connect")]
     public async Task<ActionResult<EmailConnectionStatusDto>> Connect(ConnectEmailRequest request)
     {
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
         try
         {
-            var status = await _emailService.ConnectAsync(_currentUser.UserId!.Value, request.Code, request.RedirectUri);
+            var status = await _emailService.ConnectAsync(_currentUser.DepartmentId!.Value, _currentUser.UserId!.Value, request.Code, request.RedirectUri);
             return Ok(new EmailConnectionStatusDto(status.Connected, status.ConnectedEmail));
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = "Could not connect your mailbox. Please try again.", detail = ex.Message });
+            return BadRequest(new { message = "Could not connect the branch mailbox. Please try again.", detail = ex.Message });
         }
     }
 
     [HttpPost("disconnect")]
     public async Task<IActionResult> Disconnect()
     {
-        await _emailService.DisconnectAsync(_currentUser.UserId!.Value);
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
+        await _emailService.DisconnectAsync(_currentUser.DepartmentId!.Value);
         return Ok();
     }
 
     [HttpGet("messages")]
     public async Task<ActionResult<List<InboxMessageSummaryDto>>> ListMessages([FromQuery] int take = 25)
     {
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
         try
         {
-            var messages = await _emailService.ListInboxAsync(_currentUser.UserId!.Value, take);
+            var messages = await _emailService.ListInboxAsync(_currentUser.DepartmentId!.Value, take);
             return Ok(messages.Select(m => new InboxMessageSummaryDto(
                 m.MessageId, m.Subject, m.FromEmail, m.FromName, m.BodyPreview, m.ReceivedAtUtc,
                 m.HasAttachments, m.IsMarked, m.ConvertedTicketId)).ToList());
         }
         catch (InvalidOperationException)
         {
-            return BadRequest(new { message = "No mailbox connected." });
+            return BadRequest(new { message = "No mailbox connected for your branch." });
         }
     }
 
     [HttpPost("messages/{messageId}/mark")]
     public async Task<IActionResult> SetMarked(string messageId, SetMarkedRequest request)
     {
-        var marked = await _emailService.SetMarkedAsync(_currentUser.UserId!.Value, messageId, request.Marked);
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
+        var marked = await _emailService.SetMarkedAsync(_currentUser.DepartmentId!.Value, _currentUser.UserId!.Value, messageId, request.Marked);
         return Ok(new { marked });
     }
 
     [HttpGet("messages/{messageId}/prefill")]
     public async Task<ActionResult<EmailPrefillDto>> GetPrefill(string messageId)
     {
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
         try
         {
-            var detail = await _emailService.GetMessageAsync(_currentUser.UserId!.Value, messageId);
+            var detail = await _emailService.GetMessageAsync(_currentUser.DepartmentId!.Value, messageId);
             return Ok(new EmailPrefillDto(
                 detail.MessageId, detail.FromEmail, detail.Subject, detail.BodyHtml,
                 detail.ReceivedAtUtc, detail.Attachments.Count > 0));
         }
         catch (InvalidOperationException)
         {
-            return BadRequest(new { message = "No mailbox connected." });
+            return BadRequest(new { message = "No mailbox connected for your branch." });
         }
     }
 
@@ -103,9 +110,15 @@ public class EmailIntegrationController : ControllerBase
     [HttpPost("messages/{messageId}/complete-ticket")]
     public async Task<IActionResult> CompleteTicket(string messageId, [FromQuery] Guid ticketId)
     {
-        var userId = _currentUser.UserId!.Value;
-        await _emailService.ImportAttachmentsToTicketAsync(userId, messageId, ticketId);
-        await _emailService.MarkConvertedAsync(userId, messageId, ticketId);
+        if (RequireDepartment() is BadRequestObjectResult noBranch) return noBranch;
+        var departmentId = _currentUser.DepartmentId!.Value;
+        await _emailService.ImportAttachmentsToTicketAsync(departmentId, _currentUser.UserId!.Value, messageId, ticketId);
+        await _emailService.MarkConvertedAsync(departmentId, messageId, ticketId);
         return Ok();
     }
+
+    private IActionResult? RequireDepartment() =>
+        _currentUser.DepartmentId is null
+            ? BadRequest(new { message = "You are not assigned to a branch yet. Ask an admin to assign you to one." })
+            : null;
 }

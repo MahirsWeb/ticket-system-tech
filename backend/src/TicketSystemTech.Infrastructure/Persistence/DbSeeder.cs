@@ -27,10 +27,10 @@ public static class DbSeeder
         if (!await db.Departments.AnyAsync())
         {
             db.Departments.AddRange(
-                new Department { Name = "Technical Support" },
-                new Department { Name = "Consulting" },
-                new Department { Name = "Billing" },
-                new Department { Name = "General" }
+                new Department { Name = "Technical Support", Email = "support@ticketsystemtech.local" },
+                new Department { Name = "Consulting", Email = "consulting@ticketsystemtech.local" },
+                new Department { Name = "Billing", Email = "billing@ticketsystemtech.local" },
+                new Department { Name = "General", Email = "general@ticketsystemtech.local" }
             );
         }
 

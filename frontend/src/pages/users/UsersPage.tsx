@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
-import type { CreatedUserResponse, LookupItem, UserListItemDto, UserRole } from '../../types';
+import type { CreatedUserResponse, DepartmentItemFull, LookupItem, UserListItemDto, UserRole } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
 import { TempPasswordModal } from './TempPasswordModal';
 
@@ -12,6 +12,7 @@ export default function UsersPage() {
 
   const [users, setUsers] = useState<UserListItemDto[]>([]);
   const [companies, setCompanies] = useState<LookupItem[]>([]);
+  const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [result, setResult] = useState<CreatedUserResponse | null>(null);
 
   const [firstName, setFirstName] = useState('');
@@ -19,8 +20,11 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [accountType, setAccountType] = useState<'Client' | UserRole>('Client');
   const [companyId, setCompanyId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const needsBranch = accountType === 'Consultant' || accountType === 'SupportAgent';
 
   function refreshUsers() {
     usersApi.list().then(setUsers);
@@ -29,6 +33,7 @@ export default function UsersPage() {
   useEffect(() => {
     refreshUsers();
     lookupsApi.companies().then(setCompanies);
+    lookupsApi.departments().then(setDepartments);
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -45,13 +50,19 @@ export default function UsersPage() {
         }
         created = await usersApi.createClient(firstName, lastName, email, companyId);
       } else {
-        created = await usersApi.createEmployee(firstName, lastName, email, accountType);
+        if (needsBranch && !departmentId) {
+          setError('Please select a branch.');
+          setLoading(false);
+          return;
+        }
+        created = await usersApi.createEmployee(firstName, lastName, email, accountType, needsBranch ? departmentId : undefined);
       }
       setResult(created);
       setFirstName('');
       setLastName('');
       setEmail('');
       setCompanyId('');
+      setDepartmentId('');
       refreshUsers();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not create the account.');
@@ -105,6 +116,19 @@ export default function UsersPage() {
               </Select>
             </div>
           )}
+          {needsBranch && (
+            <div>
+              <Label>Branch</Label>
+              <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">Select a branch…</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.email})
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div className="col-span-2">
             <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={loading}>
@@ -121,6 +145,7 @@ export default function UsersPage() {
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">Role</th>
+              <th className="px-4 py-2">Branch</th>
               <th className="px-4 py-2">Company</th>
               <th className="px-4 py-2">Email verified</th>
               <th className="px-4 py-2"></th>
@@ -134,6 +159,27 @@ export default function UsersPage() {
                 </td>
                 <td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2">{u.role}</td>
+                <td className="px-4 py-2">
+                  {isAdmin && (u.role === 'Consultant' || u.role === 'SupportAgent') ? (
+                    <Select
+                      value={u.departmentId ?? ''}
+                      onChange={async (e) => {
+                        await usersApi.setDepartment(u.id, e.target.value || null);
+                        refreshUsers();
+                      }}
+                      className="w-40 py-1 text-xs"
+                    >
+                      <option value="">No branch</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    u.departmentName ?? '—'
+                  )}
+                </td>
                 <td className="px-4 py-2">{u.companyName ?? '—'}</td>
                 <td className="px-4 py-2">{u.emailConfirmed ? 'Yes' : 'No'}</td>
                 <td className="px-4 py-2 text-right">
