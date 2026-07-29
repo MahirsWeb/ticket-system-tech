@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { NotificationBell } from '../components/NotificationBell';
 import { PhoneNumberBanner } from '../components/PhoneNumberBanner';
@@ -45,6 +45,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   );
 
 function TicketsNavItem({ to, label }: { to: string; label: string }) {
+  const navigate = useNavigate();
   const [counts, setCounts] = useState<TicketCountsDto | null>(null);
 
   function load() {
@@ -62,36 +63,44 @@ function TicketsNavItem({ to, label }: { to: string; label: string }) {
     { label: 'New', value: counts?.new, status: 'New' },
   ];
 
+  // Rendered as a plain sibling of the other nav items — same tag, same classes — so it lines up
+  // pixel-for-pixel with them. The dropdown panel nests inside this same <a>, so its rows are plain
+  // clickable divs (not <Link>/<a>) to avoid invalid nested anchors.
   return (
-    <div className="group relative" onMouseEnter={load}>
-      <NavLink to={to} end className={navLinkClass}>
-        <span className="inline-flex items-center gap-1">
-          {label}
-          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 opacity-60">
-            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-          </svg>
-        </span>
-      </NavLink>
+    <NavLink
+      to={to}
+      end
+      className={(p) => clsx(navLinkClass(p), 'group relative flex items-center gap-1')}
+      onMouseEnter={load}
+    >
+      {label}
+      <span className="text-[10px] opacity-60">▾</span>
       <div
         className={clsx(
           'absolute left-0 top-full z-30 w-48 -translate-y-1 opacity-0 pointer-events-none',
           'transition-all duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto'
         )}
       >
-        <div className="mt-1 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="mt-1 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-left shadow-lg">
           {rows.map((r) => (
-            <Link
+            <div
               key={r.label}
-              to={r.status ? `/tickets?status=${encodeURIComponent(r.status)}` : '/tickets'}
-              className="flex items-center justify-between px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              role="link"
+              tabIndex={0}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(r.status ? `/tickets?status=${encodeURIComponent(r.status)}` : '/tickets');
+              }}
+              className="flex cursor-pointer items-center justify-between px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50"
             >
               <span>{r.label}</span>
               <span className="font-semibold text-slate-500">{r.value ?? '—'}</span>
-            </Link>
+            </div>
           ))}
         </div>
       </div>
-    </div>
+    </NavLink>
   );
 }
 
