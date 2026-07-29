@@ -149,7 +149,7 @@ public class TicketsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<TicketListItem>>> List(
-        [FromQuery] TicketStatus? status,
+        [FromQuery] string? status,
         [FromQuery] Guid? companyId,
         [FromQuery] Guid? assignedToUserId,
         [FromQuery] Guid? departmentId,
@@ -173,7 +173,8 @@ public class TicketsController : ControllerBase
             _ => query.Where(t => t.DepartmentId == null || t.DepartmentId == _currentUser.DepartmentId)
         };
 
-        if (status.HasValue) query = query.Where(t => t.Status == status.Value);
+        var statuses = ParseStatuses(status);
+        if (statuses.Count > 0) query = query.Where(t => statuses.Contains(t.Status));
         if (companyId.HasValue) query = query.Where(t => t.CompanyId == companyId.Value);
         if (assignedToUserId.HasValue)
             query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value || t.Assignees.Any(a => a.UserId == assignedToUserId.Value));
@@ -228,6 +229,39 @@ public class TicketsController : ControllerBase
         )).ToList();
 
         return Ok(new PagedResult<TicketListItem>(items, page, pageSize, totalCount));
+    }
+
+    /// <summary>
+    /// Counts for the "Tickets" nav dropdown: total plus New / Opened (Open+InProgress+Resolved) / Closed,
+    /// scoped exactly like <see cref="List"/> so the numbers always match what clicking through shows.
+    /// </summary>
+    [HttpGet("counts")]
+    public async Task<ActionResult<TicketCountsDto>> Counts()
+    {
+        var query = _db.Tickets.AsNoTracking().AsQueryable();
+        query = _currentUser.Role switch
+        {
+            UserRole.Client => query.Where(t => t.ClientId == _currentUser.UserId),
+            UserRole.Admin => query,
+            _ => query.Where(t => t.DepartmentId == null || t.DepartmentId == _currentUser.DepartmentId)
+        };
+
+        var byStatus = await query.GroupBy(t => t.Status).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();
+        int CountOf(params TicketStatus[] wanted) => byStatus.Where(x => wanted.Contains(x.Key)).Sum(x => x.Count);
+
+        var newCount = CountOf(TicketStatus.New);
+        var openedCount = CountOf(TicketStatus.Open, TicketStatus.InProgress, TicketStatus.Resolved);
+        var closedCount = CountOf(TicketStatus.Closed);
+
+        return Ok(new TicketCountsDto(newCount + openedCount + closedCount, newCount, openedCount, closedCount));
+    }
+
+    private static List<TicketStatus> ParseStatuses(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return new List<TicketStatus>();
+        return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => Enum.TryParse<TicketStatus>(s, true, out var v) ? (TicketStatus?)v : null)
+            .Where(v => v.HasValue).Select(v => v!.Value).ToList();
     }
 
     [HttpGet("{id:guid}")]

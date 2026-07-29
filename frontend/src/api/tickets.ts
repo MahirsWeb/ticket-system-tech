@@ -3,6 +3,7 @@ import type {
   MessageType,
   PagedResult,
   TicketAttachmentDto,
+  TicketCountsDto,
   TicketDetailDto,
   TicketListItem,
   TicketPriority,
@@ -42,6 +43,8 @@ export const ticketsApi = {
 
   list: (params: TicketListParams) =>
     apiClient.get<PagedResult<TicketListItem>>('/api/tickets', { params }).then((r) => r.data),
+
+  counts: () => apiClient.get<TicketCountsDto>('/api/tickets/counts').then((r) => r.data),
 
   getById: (id: string) => apiClient.get<TicketDetailDto>(`/api/tickets/${id}`).then((r) => r.data),
 

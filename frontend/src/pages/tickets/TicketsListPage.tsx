@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ticketsApi } from '../../api/tickets';
 import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
@@ -27,7 +27,8 @@ export default function TicketsListPage() {
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<string>('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const status = searchParams.get('status') ?? '';
   const [departmentId, setDepartmentId] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
@@ -45,6 +46,10 @@ export default function TicketsListPage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStaff, isAdmin]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [status]);
 
   useEffect(() => {
     setLoading(true);
@@ -107,7 +112,17 @@ export default function TicketsListPage() {
 
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
         <div className="w-44">
-          <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+          <Select
+            value={status}
+            onChange={(e) =>
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                if (e.target.value) next.set('status', e.target.value);
+                else next.delete('status');
+                return next;
+              })
+            }
+          >
             <option value="">All statuses</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>

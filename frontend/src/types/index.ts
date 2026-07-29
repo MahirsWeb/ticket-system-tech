@@ -137,6 +137,13 @@ export interface PagedResult<T> {
   totalCount: number;
 }
 
+export interface TicketCountsDto {
+  total: number;
+  new: number;
+  opened: number;
+  closed: number;
+}
+
 export interface TicketDetailDto {
   id: string;
   ticketNumber: string;
