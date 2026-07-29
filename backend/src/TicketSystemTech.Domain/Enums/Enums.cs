@@ -52,5 +52,14 @@ public enum NotificationType
     SlaDueSoon = 5,
     UserActivatedViaInvite = 6,
     TicketTransferred = 7,
-    TicketOverdue = 8
+    TicketOverdue = 8,
+    TaskAssigned = 9
+}
+
+/// <summary>Lifecycle of a WorkTask, derived from its start/stop timestamps.</summary>
+public enum WorkTaskStatus
+{
+    Pending = 0,
+    InProgress = 1,
+    Done = 2
 }

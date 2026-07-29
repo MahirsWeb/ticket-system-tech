@@ -8,6 +8,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
   Admin: [
     { to: '/', label: 'Dashboard' },
     { to: '/tickets', label: 'Tickets' },
+    { to: '/tasks', label: 'Task' },
     { to: '/users', label: 'Users' },
     { to: '/companies', label: 'Companies' },
     { to: '/settings', label: 'Settings' },
@@ -15,6 +16,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
   Consultant: [
     { to: '/', label: 'Dashboard' },
     { to: '/tickets', label: 'Tickets' },
+    { to: '/tasks', label: 'Task' },
     { to: '/emails', label: 'Emails' },
     { to: '/users', label: 'Clients' },
     { to: '/companies', label: 'Companies' },
@@ -22,6 +24,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
   SupportAgent: [
     { to: '/', label: 'Dashboard' },
     { to: '/tickets', label: 'Tickets' },
+    { to: '/tasks', label: 'Task' },
     { to: '/emails', label: 'Emails' },
     { to: '/users', label: 'Clients' },
     { to: '/companies', label: 'Companies' },

@@ -88,6 +88,14 @@ public static class EmailTemplates
         <p>Please take a look as soon as you can.</p>
         """);
 
+    public static string WorkTaskAssigned(string recipientFirstName, string taskTitle, string assignedByName) => Wrap(
+        "A task has been assigned to you",
+        $"""
+        <p>Hi {recipientFirstName},</p>
+        <p>{assignedByName} assigned you a task: <b>"{taskTitle}"</b>.</p>
+        <p>Log in to Ticket System Tech to see the details and track your time on it.</p>
+        """);
+
     public static string TicketTransferred(string recipientFirstName, string ticketNumber, string ticketTitle, string fromBranch, string toBranch, string transferredByName) => Wrap(
         $"Ticket #{ticketNumber} transferred to your branch",
         $"""

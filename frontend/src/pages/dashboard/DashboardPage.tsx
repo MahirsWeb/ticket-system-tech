@@ -3,9 +3,11 @@ import { format, subDays } from 'date-fns';
 import { reportsApi } from '../../api/reports';
 import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
+import { workTasksApi } from '../../api/workTasks';
 import type {
   BranchBreakdownEntryDto,
   DepartmentItemFull,
+  GanttResponse,
   LeaderboardEntryDto,
   PeriodComparisonPointDto,
   ReportSummaryDto,
@@ -15,6 +17,7 @@ import type {
 } from '../../types';
 import { Button, Card, Select } from '../../components/ui';
 import { DateRangePicker } from '../../components/DateRangePicker';
+import { GanttChart } from '../../components/GanttChart';
 import { useAuthStore } from '../../store/authStore';
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -97,16 +100,38 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  const [ganttUserId, setGanttUserId] = useState('');
+  const [ganttDate, setGanttDate] = useState(() => new Date());
+  const [ganttData, setGanttData] = useState<GanttResponse | null>(null);
+  const [ganttLoading, setGanttLoading] = useState(false);
+
   const rangeDays = Math.round((to.getTime() - from.getTime()) / 86400000);
   const canRunAiInsights = rangeDays >= MIN_AI_INSIGHTS_DAYS;
 
   useEffect(() => {
-    if (!isAdmin) return;
-    lookupsApi.departments().then(setDepartments);
-    Promise.all([usersApi.list({ role: 'Consultant' }), usersApi.list({ role: 'SupportAgent' })]).then(([a, b]) =>
-      setEmployees([...a, ...b])
+    if (isAdmin) lookupsApi.departments().then(setDepartments);
+    const scope = isAdmin ? undefined : user?.departmentId ?? undefined;
+    Promise.all([usersApi.list({ role: 'Consultant', departmentId: scope }), usersApi.list({ role: 'SupportAgent', departmentId: scope })]).then(
+      ([a, b]) => setEmployees([...a, ...b])
     );
-  }, [isAdmin]);
+  }, [isAdmin, user?.departmentId]);
+
+  // Staff default to their own timeline; Admin must pick someone.
+  useEffect(() => {
+    if (!isAdmin && user?.id) setGanttUserId(user.id);
+  }, [isAdmin, user?.id]);
+
+  useEffect(() => {
+    if (!ganttUserId) {
+      setGanttData(null);
+      return;
+    }
+    setGanttLoading(true);
+    workTasksApi
+      .gantt(ganttUserId, format(ganttDate, 'yyyy-MM-dd'))
+      .then(setGanttData)
+      .finally(() => setGanttLoading(false));
+  }, [ganttUserId, ganttDate]);
 
   useEffect(() => {
     const params = { from: from.toISOString(), to: to.toISOString(), departmentId: departmentId || undefined, agentId: agentId || undefined };
@@ -235,6 +260,47 @@ export default function DashboardPage() {
           hint="Share of closed tickets (with a due date) that were resolved by their SLA due date."
         />
       </div>
+
+      <Card className="p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Daily timeline</h2>
+            <p className="text-xs text-slate-400">Tickets and tasks for one person, on the same hour axis — see what was squeezed in alongside a ticket.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-56">
+              <Select value={ganttUserId} onChange={(e) => setGanttUserId(e.target.value)}>
+                <option value="">Select a person…</option>
+                {employeesByBranch.map(([branchName, group]) => (
+                  <optgroup key={branchName} label={branchName}>
+                    {group.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.firstName} {e.lastName} ({e.role})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </div>
+            <input
+              type="date"
+              value={format(ganttDate, 'yyyy-MM-dd')}
+              onChange={(e) => e.target.value && setGanttDate(new Date(`${e.target.value}T00:00:00`))}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <Button variant="secondary" onClick={() => setGanttDate(new Date())}>
+              Today
+            </Button>
+          </div>
+        </div>
+        {!ganttUserId ? (
+          <p className="py-10 text-center text-sm text-slate-400">Choose a person above to see their timeline.</p>
+        ) : ganttLoading ? (
+          <p className="py-10 text-center text-sm text-slate-400">Loading…</p>
+        ) : (
+          <GanttChart entries={ganttData?.entries ?? []} date={ganttDate} />
+        )}
+      </Card>
 
       <Card className="p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Tickets over time</h2>

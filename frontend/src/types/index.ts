@@ -242,3 +242,66 @@ export interface OverdueNotificationSettingsDto {
   notifyOnSlaBreach: boolean;
   manualOverdueDays: number | null;
 }
+
+export type WorkTaskStatus = 'Pending' | 'InProgress' | 'Done';
+
+export interface WorkTaskAssignmentLogDto {
+  assignedByUserId: string;
+  assignedByName: string;
+  assignedToUserId: string;
+  assignedToName: string;
+  assignedAtUtc: string;
+}
+
+export interface WorkTaskListItem {
+  id: string;
+  title: string;
+  status: WorkTaskStatus;
+  departmentId: string;
+  departmentName: string;
+  createdByUserId: string;
+  createdByName: string;
+  assignedByUserId: string;
+  assignedByName: string;
+  assignedToUserId: string;
+  assignedToName: string;
+  startedAtUtc: string | null;
+  endedAtUtc: string | null;
+  createdAt: string;
+}
+
+export interface WorkTaskDetailDto {
+  id: string;
+  title: string;
+  description: string;
+  status: WorkTaskStatus;
+  departmentId: string;
+  departmentName: string;
+  createdByUserId: string;
+  createdByName: string;
+  assignedByUserId: string;
+  assignedByName: string;
+  assignedToUserId: string;
+  assignedToName: string;
+  startedAtUtc: string | null;
+  endedAtUtc: string | null;
+  createdAt: string;
+  history: WorkTaskAssignmentLogDto[];
+}
+
+export interface GanttEntryDto {
+  type: 'Ticket' | 'WorkTask';
+  id: string;
+  title: string;
+  subLabel: string | null;
+  startedAtUtc: string | null;
+  endedAtUtc: string | null;
+  status: string;
+}
+
+export interface GanttResponse {
+  userId: string;
+  userName: string;
+  date: string;
+  entries: GanttEntryDto[];
+}

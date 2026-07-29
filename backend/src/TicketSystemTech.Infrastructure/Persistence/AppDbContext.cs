@@ -26,6 +26,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<TicketAssignee> TicketAssignees => Set<TicketAssignee>();
     public DbSet<OverdueNotificationSettings> OverdueNotificationSettings => Set<OverdueNotificationSettings>();
     public DbSet<SubBranch> SubBranches => Set<SubBranch>();
+    public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
+    public DbSet<WorkTaskAssignmentLog> WorkTaskAssignmentLogs => Set<WorkTaskAssignmentLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -132,6 +134,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.Property(s => s.Name).HasMaxLength(150).IsRequired();
             e.HasIndex(s => new { s.DepartmentId, s.Name }).IsUnique();
             e.HasOne(s => s.Department).WithMany().HasForeignKey(s => s.DepartmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WorkTask>(e =>
+        {
+            e.Property(t => t.Title).HasMaxLength(300).IsRequired();
+            e.HasIndex(t => t.DepartmentId);
+            e.HasIndex(t => t.AssignedToUserId);
+            e.HasOne(t => t.Department).WithMany().HasForeignKey(t => t.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(t => t.AssignmentHistory).WithOne(h => h.WorkTask).HasForeignKey(h => h.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WorkTaskAssignmentLog>(e =>
+        {
+            e.HasIndex(h => h.WorkTaskId);
         });
     }
 }
