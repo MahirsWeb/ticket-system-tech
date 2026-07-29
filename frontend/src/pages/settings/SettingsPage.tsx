@@ -1,7 +1,75 @@
 import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
+import { settingsApi } from '../../api/settings';
 import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull } from '../../types';
-import { Button, Card, ErrorText, Input, Label } from '../../components/ui';
+import { Button, Card, ErrorText, Input, Label, SuccessText } from '../../components/ui';
+
+function OverdueNotificationsSection() {
+  const [notifyOnSlaBreach, setNotifyOnSlaBreach] = useState(true);
+  const [manualOverdueDays, setManualOverdueDays] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    settingsApi
+      .getOverdueNotifications()
+      .then((s) => {
+        setNotifyOnSlaBreach(s.notifyOnSlaBreach);
+        setManualOverdueDays(s.manualOverdueDays?.toString() ?? '');
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await settingsApi.updateOverdueNotifications(notifyOnSlaBreach, manualOverdueDays.trim() ? Number(manualOverdueDays) : null);
+      setSaved(true);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not save settings.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return null;
+
+  return (
+    <Card className="p-5">
+      <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Overdue ticket notifications</h2>
+      <p className="mb-4 text-xs text-slate-400">
+        Emails every assignee once a ticket first becomes overdue. Each ticket is only notified once.
+      </p>
+      <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={notifyOnSlaBreach} onChange={(e) => setNotifyOnSlaBreach(e.target.checked)} />
+        Notify when a ticket passes its SLA due date
+      </label>
+      <div className="flex items-center gap-2">
+        <Label>Also notify after this many days open (optional)</Label>
+      </div>
+      <Input
+        type="number"
+        min={1}
+        max={365}
+        placeholder="e.g. 3"
+        value={manualOverdueDays}
+        onChange={(e) => setManualOverdueDays(e.target.value)}
+        className="max-w-[8rem]"
+      />
+      <div className="mt-3">
+        <ErrorText>{error}</ErrorText>
+        <SuccessText>{saved ? 'Saved.' : null}</SuccessText>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[]; onRefresh: () => void }) {
   const [name, setName] = useState('');
@@ -299,6 +367,7 @@ export default function SettingsPage() {
         onUpdate={lookupsApi.updateHelpTopic}
       />
       <SlaPlansSection items={slaPlans} onRefresh={refreshSlaPlans} />
+      <OverdueNotificationsSection />
     </div>
   );
 }

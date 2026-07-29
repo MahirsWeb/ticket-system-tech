@@ -4,7 +4,9 @@ export type TicketStatus = 'New' | 'Open' | 'InProgress' | 'Resolved' | 'Closed'
 
 export type TicketSource = 'Phone' | 'Email' | 'TicketSystem' | 'Other';
 
-export type MessageType = 'Response' | 'InternalNote';
+export type MessageType = 'Response' | 'InternalNote' | 'SystemEvent';
+
+export type TicketPriority = 'Emergency' | 'High' | 'Medium' | 'Low';
 
 export interface UserSummary {
   id: string;
@@ -101,6 +103,7 @@ export interface TicketListItem {
   ticketNumber: string;
   title: string;
   status: TicketStatus;
+  priority: TicketPriority | null;
   companyName: string;
   clientName: string;
   assignedToName: string | null;
@@ -109,6 +112,11 @@ export interface TicketListItem {
   closedAtUtc: string | null;
   departmentId: string | null;
   departmentName: string | null;
+}
+
+export interface TicketAssigneeDto {
+  userId: string;
+  name: string;
 }
 
 export interface PagedResult<T> {
@@ -126,6 +134,8 @@ export interface TicketDetailDto {
   status: TicketStatus;
   clientId: string;
   clientName: string;
+  clientEmail: string | null;
+  clientPhoneNumber: string | null;
   companyId: string;
   companyName: string;
   source: TicketSource | null;
@@ -135,9 +145,13 @@ export interface TicketDetailDto {
   departmentName: string | null;
   slaPlanId: string | null;
   slaPlanName: string | null;
+  priority: TicketPriority | null;
   dueDateUtc: string | null;
   assignedToUserId: string | null;
   assignedToName: string | null;
+  assignees: TicketAssigneeDto[];
+  workStartedAtUtc: string | null;
+  workEndedAtUtc: string | null;
   openedAtUtc: string | null;
   closedAtUtc: string | null;
   resolutionSummary: string | null;
@@ -207,4 +221,9 @@ export interface PeriodComparisonPointDto {
 export interface TopIssueDto {
   helpTopicName: string;
   count: number;
+}
+
+export interface OverdueNotificationSettingsDto {
+  notifyOnSlaBreach: boolean;
+  manualOverdueDays: number | null;
 }

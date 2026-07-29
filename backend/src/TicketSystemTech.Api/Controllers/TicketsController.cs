@@ -113,12 +113,23 @@ public class TicketsController : ControllerBase
             HelpTopicId = request.HelpTopicId,
             DepartmentId = request.DepartmentId,
             SlaPlanId = request.SlaPlanId,
+            Priority = request.Priority,
             DueDateUtc = request.DueDateUtc,
             AssignedToUserId = request.AssignedToUserId,
             OpenedByUserId = _currentUser.UserId,
             OpenedAtUtc = DateTime.UtcNow
         };
         _db.Tickets.Add(ticket);
+        _db.TicketAssignees.Add(new TicketAssignee { Ticket = ticket, UserId = assignee.Id });
+
+        var openedBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
+        _db.TicketMessages.Add(new TicketMessage
+        {
+            Ticket = ticket,
+            AuthorId = openedBy.Id,
+            Type = MessageType.SystemEvent,
+            BodyHtml = $"<p>Ticket opened by {openedBy.FirstName} {openedBy.LastName} and assigned to {assignee.FirstName} {assignee.LastName}.</p>"
+        });
 
         _db.Notifications.Add(new Notification { UserId = assignee.Id, Type = NotificationType.TicketAssigned, Message = $"Ticket #{ticket.TicketNumber} assigned to you", TicketId = ticket.Id });
         await _db.SaveChangesAsync();
@@ -137,6 +148,8 @@ public class TicketsController : ControllerBase
         [FromQuery] Guid? assignedToUserId,
         [FromQuery] Guid? departmentId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -155,18 +168,34 @@ public class TicketsController : ControllerBase
 
         if (status.HasValue) query = query.Where(t => t.Status == status.Value);
         if (companyId.HasValue) query = query.Where(t => t.CompanyId == companyId.Value);
-        if (assignedToUserId.HasValue) query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value);
+        if (assignedToUserId.HasValue)
+            query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value || t.Assignees.Any(a => a.UserId == assignedToUserId.Value));
         if (departmentId.HasValue) query = query.Where(t => t.DepartmentId == departmentId.Value);
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(t => t.TicketNumber.Contains(search) || t.Title.Contains(search));
 
         var totalCount = await query.CountAsync();
 
-        var page_ = await query.OrderByDescending(t => t.CreatedAt)
+        var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sortBy?.ToLowerInvariant()) switch
+        {
+            "ticketnumber" => desc ? query.OrderByDescending(t => t.TicketNumber) : query.OrderBy(t => t.TicketNumber),
+            "title" => desc ? query.OrderByDescending(t => t.Title) : query.OrderBy(t => t.Title),
+            "status" => desc ? query.OrderByDescending(t => t.Status) : query.OrderBy(t => t.Status),
+            "priority" => desc ? query.OrderByDescending(t => t.Priority) : query.OrderBy(t => t.Priority),
+            "duedate" => desc ? query.OrderByDescending(t => t.DueDateUtc) : query.OrderBy(t => t.DueDateUtc),
+            "createdat" => desc ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt),
+            "branch" => desc ? query.OrderByDescending(t => t.Department!.Name) : query.OrderBy(t => t.Department!.Name),
+            "company" => desc ? query.OrderByDescending(t => t.Company!.Name) : query.OrderBy(t => t.Company!.Name),
+            // Default: most urgent first, then soonest SLA due date first — the operational priority order.
+            _ => query.OrderBy(t => t.Priority).ThenBy(t => t.DueDateUtc)
+        };
+
+        var page_ = await query
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(t => new
             {
-                t.Id, t.TicketNumber, t.Title, t.Status, t.CompanyId, t.ClientId, t.AssignedToUserId, t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc, t.DepartmentId
+                t.Id, t.TicketNumber, t.Title, t.Status, t.Priority, t.CompanyId, t.ClientId, t.AssignedToUserId, t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc, t.DepartmentId
             })
             .ToListAsync();
 
@@ -179,7 +208,7 @@ public class TicketsController : ControllerBase
         var departments = await _db.Departments.Where(d => departmentIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name);
 
         var items = page_.Select(t => new TicketListItem(
-            t.Id, t.TicketNumber, t.Title, t.Status.ToString(),
+            t.Id, t.TicketNumber, t.Title, t.Status.ToString(), t.Priority?.ToString(),
             companies.GetValueOrDefault(t.CompanyId, ""),
             users.GetValueOrDefault(t.ClientId, ""),
             t.AssignedToUserId.HasValue ? users.GetValueOrDefault(t.AssignedToUserId.Value) : null,
@@ -222,14 +251,23 @@ public class TicketsController : ControllerBase
         ticket.HelpTopicId = request.HelpTopicId;
         ticket.DepartmentId = request.DepartmentId;
         ticket.SlaPlanId = request.SlaPlanId;
+        ticket.Priority = request.Priority;
         ticket.DueDateUtc = request.DueDateUtc;
         ticket.AssignedToUserId = request.AssignedToUserId;
         ticket.Status = TicketStatus.Open;
         ticket.OpenedByUserId = _currentUser.UserId;
         ticket.OpenedAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        _db.TicketAssignees.Add(new TicketAssignee { TicketId = ticket.Id, UserId = assignee.Id });
 
         var client = await _db.Users.FirstAsync(u => u.Id == ticket.ClientId);
+        var openedBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
+        _db.TicketMessages.Add(new TicketMessage
+        {
+            TicketId = ticket.Id,
+            AuthorId = openedBy.Id,
+            Type = MessageType.SystemEvent,
+            BodyHtml = $"<p>Ticket opened by {openedBy.FirstName} {openedBy.LastName} and assigned to {assignee.FirstName} {assignee.LastName}.</p>"
+        });
 
         _db.Notifications.Add(new Notification { UserId = assignee.Id, Type = NotificationType.TicketAssigned, Message = $"Ticket #{ticket.TicketNumber} assigned to you", TicketId = ticket.Id });
         await _db.SaveChangesAsync();
@@ -261,12 +299,14 @@ public class TicketsController : ControllerBase
         var transferredBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
 
         ticket.DepartmentId = toDepartment.Id;
-        ticket.AssignedToUserId = null; // the previous assignee likely doesn't belong to the destination branch
+        ticket.AssignedToUserId = null; // the previous assignee(s) likely don't belong to the destination branch
+        var oldAssignees = await _db.TicketAssignees.Where(a => a.TicketId == ticket.Id).ToListAsync();
+        _db.TicketAssignees.RemoveRange(oldAssignees);
         _db.TicketMessages.Add(new TicketMessage
         {
             TicketId = ticket.Id,
             AuthorId = transferredBy.Id,
-            Type = MessageType.InternalNote,
+            Type = MessageType.SystemEvent,
             BodyHtml = $"<p>Ticket transferred from <b>{fromDepartment?.Name ?? "(unrouted)"}</b> to <b>{toDepartment.Name}</b> by {transferredBy.FirstName} {transferredBy.LastName}.</p>"
         });
         await _db.SaveChangesAsync();
@@ -315,10 +355,17 @@ public class TicketsController : ControllerBase
         ticket.TechnicalNotes = request.TechnicalNotes;
         ticket.ClosedByUserId = _currentUser.UserId;
         ticket.ClosedAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
 
         var client = await _db.Users.FirstAsync(u => u.Id == ticket.ClientId);
         var closedBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
+
+        _db.TicketMessages.Add(new TicketMessage
+        {
+            TicketId = ticket.Id,
+            AuthorId = closedBy.Id,
+            Type = MessageType.SystemEvent,
+            BodyHtml = $"<p>Ticket closed by {closedBy.FirstName} {closedBy.LastName}.</p>"
+        });
 
         _db.Notifications.Add(new Notification { UserId = client.Id, Type = NotificationType.TicketClosed, Message = $"Ticket #{ticket.TicketNumber} has been resolved", TicketId = ticket.Id });
         await _db.SaveChangesAsync();
@@ -332,6 +379,84 @@ public class TicketsController : ControllerBase
         return Ok(await BuildDetailDto(id));
     }
 
+    /// <summary>Adds a co-assignee — e.g. a second person who helped resolve a different part of the same ticket.</summary>
+    [HttpPost("{id:guid}/assignees")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<TicketDetailDto>> AddAssignee(Guid id, AddTicketAssigneeRequest request)
+    {
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null) return NotFound();
+        if (!CanAccess(ticket)) return Forbid();
+        if (ticket.Status is TicketStatus.New or TicketStatus.Closed)
+            return BadRequest(new { message = "The ticket must be open to change its assignees." });
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId && (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent));
+        if (user is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
+        if (user.DepartmentId != ticket.DepartmentId) return BadRequest(new { message = "Assignee must belong to this ticket's branch." });
+
+        var alreadyAssigned = await _db.TicketAssignees.AnyAsync(a => a.TicketId == id && a.UserId == request.UserId);
+        if (alreadyAssigned) return BadRequest(new { message = "This person is already assigned to the ticket." });
+
+        _db.TicketAssignees.Add(new TicketAssignee { TicketId = id, UserId = user.Id });
+
+        var addedBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
+        _db.TicketMessages.Add(new TicketMessage
+        {
+            TicketId = id,
+            AuthorId = addedBy.Id,
+            Type = MessageType.SystemEvent,
+            BodyHtml = $"<p>{user.FirstName} {user.LastName} added as an assignee by {addedBy.FirstName} {addedBy.LastName}.</p>"
+        });
+
+        _db.Notifications.Add(new Notification { UserId = user.Id, Type = NotificationType.TicketAssigned, Message = $"Ticket #{ticket.TicketNumber} assigned to you", TicketId = ticket.Id });
+        await _db.SaveChangesAsync();
+
+        await _emailSender.SendAsync(user.Email!, $"Ticket #{ticket.TicketNumber} assigned to you", EmailTemplates.TicketAssigned(user.FirstName, ticket.TicketNumber, ticket.Title));
+        await _notificationPublisher.PushToUserAsync(user.Id, "ticketAssigned", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+
+        return Ok(await BuildDetailDto(id));
+    }
+
+    [HttpDelete("{id:guid}/assignees/{userId:guid}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<TicketDetailDto>> RemoveAssignee(Guid id, Guid userId)
+    {
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null) return NotFound();
+        if (!CanAccess(ticket)) return Forbid();
+
+        var assignment = await _db.TicketAssignees.FirstOrDefaultAsync(a => a.TicketId == id && a.UserId == userId);
+        if (assignment is null) return NotFound();
+
+        _db.TicketAssignees.Remove(assignment);
+        if (ticket.AssignedToUserId == userId)
+        {
+            var remaining = await _db.TicketAssignees.Where(a => a.TicketId == id && a.UserId != userId).FirstOrDefaultAsync();
+            ticket.AssignedToUserId = remaining?.UserId;
+        }
+        await _db.SaveChangesAsync();
+
+        return Ok(await BuildDetailDto(id));
+    }
+
+    /// <summary>Manually logs when work on the ticket started/ended — not tied to any single assignee.</summary>
+    [HttpPatch("{id:guid}/work-time")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<TicketDetailDto>> SetWorkTime(Guid id, SetTicketWorkTimeRequest request)
+    {
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null) return NotFound();
+        if (!CanAccess(ticket)) return Forbid();
+        if (request.StartedAtUtc.HasValue && request.EndedAtUtc.HasValue && request.EndedAtUtc < request.StartedAtUtc)
+            return BadRequest(new { message = "End time cannot be before start time." });
+
+        ticket.WorkStartedAtUtc = request.StartedAtUtc;
+        ticket.WorkEndedAtUtc = request.EndedAtUtc;
+        await _db.SaveChangesAsync();
+
+        return Ok(await BuildDetailDto(id));
+    }
+
     [HttpPost("{id:guid}/messages")]
     public async Task<ActionResult<TicketMessageDto>> AddMessage(Guid id, AddTicketMessageRequest request)
     {
@@ -339,6 +464,8 @@ public class TicketsController : ControllerBase
         if (ticket is null) return NotFound();
         if (!CanAccess(ticket)) return Forbid();
 
+        if (request.Type == MessageType.SystemEvent)
+            return BadRequest(new { message = "System events are recorded automatically and cannot be posted directly." });
         if (_currentUser.Role == UserRole.Client && request.Type != MessageType.Response)
             return Forbid();
 
@@ -403,30 +530,41 @@ public class TicketsController : ControllerBase
             .OrderBy(m => m.CreatedAt)
             .ToListAsync();
 
-        // Clients never see InternalNote messages.
+        // Clients never see InternalNote or SystemEvent entries — only the Response conversation.
         if (_currentUser.Role == UserRole.Client)
             messages = messages.Where(m => m.Type == MessageType.Response).ToList();
 
+        var assignees = await _db.TicketAssignees.AsNoTracking().Where(a => a.TicketId == ticketId).ToListAsync();
+
         var relevantUserIds = new List<Guid> { t.ClientId };
         if (t.AssignedToUserId.HasValue) relevantUserIds.Add(t.AssignedToUserId.Value);
+        relevantUserIds.AddRange(assignees.Select(a => a.UserId));
         relevantUserIds.AddRange(messages.Select(m => m.AuthorId));
-        var users = await _db.Users.Where(u => relevantUserIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => $"{u.FirstName} {u.LastName}");
+        var users = await _db.Users.Where(u => relevantUserIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u);
+
+        string NameOf(Guid userId) => users.TryGetValue(userId, out var u) ? $"{u.FirstName} {u.LastName}" : "";
 
         var messageDtos = messages.Select(m => new TicketMessageDto(
-            m.Id, m.Type.ToString(), m.BodyHtml, m.AuthorId, users.GetValueOrDefault(m.AuthorId, ""), m.CreatedAt,
+            m.Id, m.Type.ToString(), m.BodyHtml, m.AuthorId, NameOf(m.AuthorId), m.CreatedAt,
             m.Attachments.Select(a => new TicketAttachmentDto(a.Id, a.FileName, a.FileUrl, a.FileSizeBytes, a.ContentType, a.CreatedAt)).ToList()
         )).ToList();
 
         var ticketLevelAttachments = t.Attachments.Where(a => a.MessageId == null)
             .Select(a => new TicketAttachmentDto(a.Id, a.FileName, a.FileUrl, a.FileSizeBytes, a.ContentType, a.CreatedAt)).ToList();
 
+        var assigneeDtos = assignees.Select(a => new TicketAssigneeDto(a.UserId, NameOf(a.UserId))).ToList();
+
+        users.TryGetValue(t.ClientId, out var clientUser);
+
         return new TicketDetailDto(
             t.Id, t.TicketNumber, t.Title, t.Description, t.Status.ToString(),
-            t.ClientId, users.GetValueOrDefault(t.ClientId, ""),
+            t.ClientId, NameOf(t.ClientId), clientUser?.Email, clientUser?.PhoneNumber,
             t.CompanyId, t.Company?.Name ?? "",
             t.Source?.ToString(), t.HelpTopicId, t.HelpTopic?.Name, t.DepartmentId, t.Department?.Name,
-            t.SlaPlanId, t.SlaPlan?.Name, t.DueDateUtc, t.AssignedToUserId,
-            t.AssignedToUserId.HasValue ? users.GetValueOrDefault(t.AssignedToUserId.Value) : null,
+            t.SlaPlanId, t.SlaPlan?.Name, t.Priority?.ToString(), t.DueDateUtc, t.AssignedToUserId,
+            t.AssignedToUserId.HasValue ? NameOf(t.AssignedToUserId.Value) : null,
+            assigneeDtos, t.WorkStartedAtUtc, t.WorkEndedAtUtc,
             t.OpenedAtUtc, t.ClosedAtUtc, t.ResolutionSummary, t.TechnicalNotes, t.CreatedAt,
             ticketLevelAttachments, messageDtos
         );

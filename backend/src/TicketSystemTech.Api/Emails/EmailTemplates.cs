@@ -80,6 +80,14 @@ public static class EmailTemplates
         $"New reply on ticket #{ticketNumber}",
         $"<p>Hi {recipientFirstName},</p><p>There is a new reply on ticket <b>#{ticketNumber}</b>. Please log in to the ticket system to view it.</p>");
 
+    public static string TicketOverdue(string assigneeFirstName, string ticketNumber, string ticketTitle, string reason) => Wrap(
+        $"Ticket #{ticketNumber} is overdue",
+        $"""
+        <p>Hi {assigneeFirstName},</p>
+        <p>Ticket <b>#{ticketNumber}</b> — "{ticketTitle}" — is overdue: {reason}.</p>
+        <p>Please take a look as soon as you can.</p>
+        """);
+
     public static string TicketTransferred(string recipientFirstName, string ticketNumber, string ticketTitle, string fromBranch, string toBranch, string transferredByName) => Wrap(
         $"Ticket #{ticketNumber} transferred to your branch",
         $"""

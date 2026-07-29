@@ -23,6 +23,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<EmailConnection> EmailConnections => Set<EmailConnection>();
     public DbSet<EmailTicketMark> EmailTicketMarks => Set<EmailTicketMark>();
+    public DbSet<TicketAssignee> TicketAssignees => Set<TicketAssignee>();
+    public DbSet<OverdueNotificationSettings> OverdueNotificationSettings => Set<OverdueNotificationSettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -112,6 +114,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<EmailTicketMark>(e =>
         {
             e.HasIndex(m => new { m.DepartmentId, m.MessageId }).IsUnique();
+        });
+
+        builder.Entity<TicketAssignee>(e =>
+        {
+            e.HasIndex(a => new { a.TicketId, a.UserId }).IsUnique();
+            e.HasOne(a => a.Ticket).WithMany(t => t.Assignees).HasForeignKey(a => a.TicketId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

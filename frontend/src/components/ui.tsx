@@ -111,6 +111,22 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const PRIORITY_STYLES: Record<string, string> = {
+  Emergency: 'bg-red-100 text-red-700',
+  High: 'bg-orange-100 text-orange-700',
+  Medium: 'bg-amber-100 text-amber-700',
+  Low: 'bg-slate-100 text-slate-600',
+};
+
+export function PriorityBadge({ priority }: { priority: string | null }) {
+  if (!priority) return <span className="text-xs text-slate-300">—</span>;
+  return (
+    <span className={clsx('rounded-full px-2.5 py-0.5 text-xs font-semibold', PRIORITY_STYLES[priority] ?? 'bg-slate-100 text-slate-600')}>
+      {priority}
+    </span>
+  );
+}
+
 export function Spinner({ className }: { className?: string }) {
   return (
     <svg className={clsx('animate-spin', className)} viewBox="0 0 24 24" fill="none">

@@ -6,12 +6,14 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Link from '@tiptap/extension-link';
 import { FontSize } from './FontSizeExtension';
 import clsx from 'clsx';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface Props {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  /** Called with any files pasted (e.g. a screenshot) or picked via the toolbar's attach button. */
+  onFilesSelected?: (files: File[]) => void;
 }
 
 function ToolbarButton({
@@ -41,7 +43,7 @@ function ToolbarButton({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onAttachClick }: { editor: Editor; onAttachClick?: () => void }) {
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 p-1.5">
       <ToolbarButton title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -83,11 +85,21 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton title="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
         1. List
       </ToolbarButton>
+      {onAttachClick && (
+        <>
+          <div className="mx-1 h-5 w-px bg-slate-300" />
+          <ToolbarButton title="Attach a file" onClick={onAttachClick}>
+            📎 Attach
+          </ToolbarButton>
+        </>
+      )}
     </div>
   );
 }
 
-export function RichTextEditor({ value, onChange, placeholder }: Props) {
+export function RichTextEditor({ value, onChange, placeholder, onFilesSelected }: Props) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -104,6 +116,14 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
         class: 'tiptap prose prose-sm max-w-none px-3 py-2',
         'data-placeholder': placeholder ?? '',
       },
+      handlePaste: (_view, event) => {
+        if (!onFilesSelected) return false;
+        const files = Array.from(event.clipboardData?.files ?? []);
+        if (files.length === 0) return false;
+        onFilesSelected(files);
+        event.preventDefault();
+        return true;
+      },
     },
   });
 
@@ -118,8 +138,22 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
 
   return (
     <div className="rounded-md border border-slate-300 bg-white">
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} onAttachClick={onFilesSelected ? () => fileInputRef.current?.click() : undefined} />
       <EditorContent editor={editor} />
+      {onFilesSelected && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            if (files.length > 0) onFilesSelected(files);
+            e.target.value = '';
+          }}
+        />
+      )}
     </div>
   );
 }

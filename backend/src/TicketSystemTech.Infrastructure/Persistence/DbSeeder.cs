@@ -46,6 +46,11 @@ public static class DbSeeder
             );
         }
 
+        if (!await db.OverdueNotificationSettings.AnyAsync())
+        {
+            db.OverdueNotificationSettings.Add(new OverdueNotificationSettings { NotifyOnSlaBreach = true, ManualOverdueDays = null });
+        }
+
         await db.SaveChangesAsync();
 
         var existingAdmin = await userManager.FindByEmailAsync(SeedAdminEmail);

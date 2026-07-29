@@ -125,6 +125,7 @@ builder.Services.AddScoped<IChatCompletionService, GeminiChatCompletionService>(
 builder.Services.AddScoped<IEmailIntegrationService, GraphEmailIntegrationService>();
 builder.Services.Configure<MicrosoftGraphOptions>(builder.Configuration.GetSection("MicrosoftGraph"));
 builder.Services.AddSingleton<INotificationPublisher, SignalRNotificationPublisher>();
+builder.Services.AddHostedService<TicketSystemTech.Api.BackgroundJobs.OverdueTicketNotifier>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 

@@ -31,6 +31,9 @@ public class Ticket : BaseEntity
     public DateTime? DueDateUtc { get; set; }
     public Guid? AssignedToUserId { get; set; }
 
+    /// <summary>Urgency chosen by whoever opens the ticket. Drives the default list sort order.</summary>
+    public TicketPriority? Priority { get; set; }
+
     public Guid? OpenedByUserId { get; set; }
     public DateTime? OpenedAtUtc { get; set; }
 
@@ -43,6 +46,14 @@ public class Ticket : BaseEntity
     /// <summary>Optional technical/code-change log recorded by support when closing.</summary>
     public string? TechnicalNotes { get; set; }
 
+    /// <summary>Manually logged work session — not tied to any single assignee, just "when work happened".</summary>
+    public DateTime? WorkStartedAtUtc { get; set; }
+    public DateTime? WorkEndedAtUtc { get; set; }
+
+    /// <summary>Set once an overdue notification has been sent, so the background job doesn't re-notify every run.</summary>
+    public DateTime? OverdueNotifiedAtUtc { get; set; }
+
     public ICollection<TicketMessage> Messages { get; set; } = new List<TicketMessage>();
     public ICollection<TicketAttachment> Attachments { get; set; } = new List<TicketAttachment>();
+    public ICollection<TicketAssignee> Assignees { get; set; } = new List<TicketAssignee>();
 }

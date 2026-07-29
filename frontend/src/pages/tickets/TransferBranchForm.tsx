@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
 import { ticketsApi } from '../../api/tickets';
 import type { DepartmentItemFull, TicketDetailDto } from '../../types';
-import { Button, Card, ErrorText, Label, Select } from '../../components/ui';
+import { Button, ErrorText, Select } from '../../components/ui';
 
 export function TransferBranchForm({ ticket, onTransferred }: { ticket: TicketDetailDto; onTransferred: (t: TicketDetailDto) => void }) {
+  const [expanded, setExpanded] = useState(false);
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [departmentId, setDepartmentId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!expanded) return;
     lookupsApi.departments().then((depts) => setDepartments(depts.filter((d) => d.id !== ticket.departmentId)));
-  }, [ticket.departmentId]);
+  }, [expanded, ticket.departmentId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +27,7 @@ export function TransferBranchForm({ ticket, onTransferred }: { ticket: TicketDe
     try {
       const updated = await ticketsApi.transferBranch(ticket.id, departmentId);
       setDepartmentId('');
+      setExpanded(false);
       onTransferred(updated);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not transfer this ticket.');
@@ -33,17 +36,24 @@ export function TransferBranchForm({ ticket, onTransferred }: { ticket: TicketDe
     }
   }
 
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
+      >
+        Transfer to another branch…
+      </button>
+    );
+  }
+
   return (
-    <Card className="p-5">
-      <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Transfer to another branch</h2>
-      <p className="mb-3 text-xs text-slate-400">
-        Moves this ticket out of {ticket.departmentName ?? 'its current branch'} and notifies everyone in the destination branch.
-      </p>
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-        <div className="w-56">
-          <Label>Destination branch</Label>
-          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-            <option value="">Select a branch…</option>
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
+        <div className="w-52">
+          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="text-xs">
+            <option value="">Select destination branch…</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -51,11 +61,14 @@ export function TransferBranchForm({ ticket, onTransferred }: { ticket: TicketDe
             ))}
           </Select>
         </div>
-        <Button type="submit" variant="secondary" disabled={loading}>
+        <Button type="submit" variant="secondary" disabled={loading} className="text-xs">
           {loading ? 'Transferring…' : 'Transfer'}
         </Button>
+        <button type="button" onClick={() => setExpanded(false)} className="text-xs text-slate-400 hover:underline">
+          Cancel
+        </button>
       </form>
       <ErrorText>{error}</ErrorText>
-    </Card>
+    </div>
   );
 }

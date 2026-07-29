@@ -28,7 +28,18 @@ public enum TicketSource
 public enum MessageType
 {
     Response = 0,
-    InternalNote = 1
+    InternalNote = 1,
+    /// <summary>Auto-generated lifecycle entry (opened, assigned, transferred, closed, ...) shown inline in the staff activity feed.</summary>
+    SystemEvent = 2
+}
+
+/// <summary>Urgency selected by whoever opens the ticket. Ordered so the enum's numeric value sorts most-urgent first.</summary>
+public enum TicketPriority
+{
+    Emergency = 0,
+    High = 1,
+    Medium = 2,
+    Low = 3
 }
 
 public enum NotificationType
@@ -40,5 +51,6 @@ public enum NotificationType
     NewResponse = 4,
     SlaDueSoon = 5,
     UserActivatedViaInvite = 6,
-    TicketTransferred = 7
+    TicketTransferred = 7,
+    TicketOverdue = 8
 }

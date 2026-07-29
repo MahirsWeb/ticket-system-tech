@@ -17,6 +17,7 @@ public record CreateTicketOnBehalfRequest(
     [Required] Guid HelpTopicId,
     [Required] Guid DepartmentId,
     [Required] Guid SlaPlanId,
+    [Required] TicketPriority Priority,
     [Required] DateTime DueDateUtc,
     [Required] Guid AssignedToUserId
 );
@@ -26,6 +27,7 @@ public record OpenTicketRequest(
     [Required] Guid HelpTopicId,
     [Required] Guid DepartmentId,
     [Required] Guid SlaPlanId,
+    [Required] TicketPriority Priority,
     [Required] DateTime DueDateUtc,
     [Required] Guid AssignedToUserId
 );
@@ -40,11 +42,21 @@ public record AddTicketMessageRequest(
     [Required] string BodyHtml
 );
 
+public record AddTicketAssigneeRequest(
+    [Required] Guid UserId
+);
+
+public record SetTicketWorkTimeRequest(
+    DateTime? StartedAtUtc,
+    DateTime? EndedAtUtc
+);
+
 public record TicketListItem(
     Guid Id,
     string TicketNumber,
     string Title,
     string Status,
+    string? Priority,
     string CompanyName,
     string ClientName,
     string? AssignedToName,
@@ -73,6 +85,8 @@ public record TicketMessageDto(
     List<TicketAttachmentDto> Attachments
 );
 
+public record TicketAssigneeDto(Guid UserId, string Name);
+
 public record TicketDetailDto(
     Guid Id,
     string TicketNumber,
@@ -81,6 +95,8 @@ public record TicketDetailDto(
     string Status,
     Guid ClientId,
     string ClientName,
+    string? ClientEmail,
+    string? ClientPhoneNumber,
     Guid CompanyId,
     string CompanyName,
     string? Source,
@@ -90,9 +106,13 @@ public record TicketDetailDto(
     string? DepartmentName,
     Guid? SlaPlanId,
     string? SlaPlanName,
+    string? Priority,
     DateTime? DueDateUtc,
     Guid? AssignedToUserId,
     string? AssignedToName,
+    List<TicketAssigneeDto> Assignees,
+    DateTime? WorkStartedAtUtc,
+    DateTime? WorkEndedAtUtc,
     DateTime? OpenedAtUtc,
     DateTime? ClosedAtUtc,
     string? ResolutionSummary,

@@ -1,41 +1,91 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ticketsApi } from '../../api/tickets';
 import { lookupsApi } from '../../api/lookups';
-import type { DepartmentItemFull, TicketListItem, TicketStatus } from '../../types';
-import { Button, Card, Input, Select, Spinner, StatusBadge } from '../../components/ui';
+import { usersApi } from '../../api/users';
+import type { DepartmentItemFull, TicketListItem, TicketStatus, UserListItemDto } from '../../types';
+import { Button, Card, Input, PriorityBadge, Select, Spinner, StatusBadge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { format } from 'date-fns';
 
 const STATUSES: TicketStatus[] = ['New', 'Open', 'InProgress', 'Resolved', 'Closed'];
 const PAGE_SIZE = 20;
 
+const SORTABLE_COLUMNS: { key: string; label: string; className?: string }[] = [
+  { key: 'ticketNumber', label: '#' },
+  { key: 'title', label: 'Title' },
+  { key: 'status', label: 'Status' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'branch', label: 'Branch' },
+  { key: 'company', label: 'Company' },
+];
+
 export default function TicketsListPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
+  const isStaff = user?.role === 'Admin' || user?.role === 'Consultant' || user?.role === 'SupportAgent';
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>('');
   const [departmentId, setDepartmentId] = useState('');
+  const [assignedToUserId, setAssignedToUserId] = useState('');
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
+  const [employees, setEmployees] = useState<UserListItemDto[]>([]);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isStaff) return;
     if (isAdmin) lookupsApi.departments().then(setDepartments);
-  }, [isAdmin]);
+    Promise.all([usersApi.list({ role: 'Consultant' }), usersApi.list({ role: 'SupportAgent' })]).then(([a, b]) =>
+      setEmployees([...a, ...b])
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStaff, isAdmin]);
 
   useEffect(() => {
     setLoading(true);
     ticketsApi
-      .list({ page, pageSize: PAGE_SIZE, status: status || undefined, departmentId: departmentId || undefined, search: search || undefined })
+      .list({
+        page,
+        pageSize: PAGE_SIZE,
+        status: status || undefined,
+        departmentId: departmentId || undefined,
+        assignedToUserId: assignedToUserId || undefined,
+        search: search || undefined,
+        sortBy: sortBy ?? undefined,
+        sortDir,
+      })
       .then((res) => {
         setItems(res.items);
         setTotalCount(res.totalCount);
       })
       .finally(() => setLoading(false));
-  }, [page, status, departmentId, search]);
+  }, [page, status, departmentId, assignedToUserId, search, sortBy, sortDir]);
+
+  const employeesByBranch = useMemo(() => {
+    const scoped = departmentId ? employees.filter((e) => e.departmentId === departmentId) : employees;
+    const groups = new Map<string, UserListItemDto[]>();
+    for (const e of scoped) {
+      const key = e.departmentName ?? 'No branch';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(e);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [employees, departmentId]);
+
+  function handleSort(key: string) {
+    if (sortBy === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortDir('asc');
+    }
+    setPage(1);
+  }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -48,7 +98,7 @@ export default function TicketsListPage() {
             <Button>Submit a ticket</Button>
           </Link>
         )}
-        {(user?.role === 'Admin' || user?.role === 'Consultant' || user?.role === 'SupportAgent') && (
+        {isStaff && (
           <Link to="/tickets/new-on-behalf">
             <Button>New ticket</Button>
           </Link>
@@ -56,7 +106,7 @@ export default function TicketsListPage() {
       </div>
 
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
-        <div className="w-48">
+        <div className="w-44">
           <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
             <option value="">All statuses</option>
             {STATUSES.map((s) => (
@@ -66,7 +116,7 @@ export default function TicketsListPage() {
             ))}
           </Select>
         </div>
-        <div className="w-64">
+        <div className="w-56">
           <Input
             placeholder="Search by number or title…"
             value={search}
@@ -74,13 +124,29 @@ export default function TicketsListPage() {
           />
         </div>
         {isAdmin && (
-          <div className="w-48">
-            <Select value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setPage(1); }}>
+          <div className="w-44">
+            <Select value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setAssignedToUserId(''); setPage(1); }}>
               <option value="">All branches</option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
                 </option>
+              ))}
+            </Select>
+          </div>
+        )}
+        {isStaff && (
+          <div className="w-52">
+            <Select value={assignedToUserId} onChange={(e) => { setAssignedToUserId(e.target.value); setPage(1); }}>
+              <option value="">All employees</option>
+              {employeesByBranch.map(([branchName, group]) => (
+                <optgroup key={branchName} label={branchName}>
+                  {group.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.firstName} {e.lastName}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </Select>
           </div>
@@ -93,47 +159,63 @@ export default function TicketsListPage() {
             <Spinner className="h-6 w-6 text-blue-700" />
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-2">#</th>
-                <th className="px-4 py-2">Title</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Branch</th>
-                <th className="px-4 py-2">Company</th>
-                <th className="px-4 py-2">Client</th>
-                <th className="px-4 py-2">Assigned to</th>
-                <th className="px-4 py-2">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((t) => (
-                <tr key={t.id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-2">
-                    <Link to={`/tickets/${t.id}`} className="font-medium text-blue-700 hover:underline">
-                      #{t.ticketNumber}
-                    </Link>
-                  </td>
-                  <td className="max-w-xs truncate px-4 py-2">{t.title}</td>
-                  <td className="px-4 py-2">
-                    <StatusBadge status={t.status} />
-                  </td>
-                  <td className="px-4 py-2 text-slate-500">{t.departmentName ?? '—'}</td>
-                  <td className="px-4 py-2">{t.companyName}</td>
-                  <td className="px-4 py-2">{t.clientName}</td>
-                  <td className="px-4 py-2">{t.assignedToName ?? '—'}</td>
-                  <td className="px-4 py-2 text-slate-500">{format(new Date(t.createdAt), 'dd.MM.yyyy HH:mm')}</td>
-                </tr>
-              ))}
-              {items.length === 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
-                    No tickets found.
-                  </td>
+                  {SORTABLE_COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      className="cursor-pointer select-none whitespace-nowrap px-3 py-1.5 hover:text-slate-700"
+                      onClick={() => handleSort(col.key)}
+                    >
+                      {col.label}
+                      {sortBy === col.key && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                    </th>
+                  ))}
+                  <th className="whitespace-nowrap px-3 py-1.5">Client</th>
+                  <th className="whitespace-nowrap px-3 py-1.5">Assigned to</th>
+                  <th
+                    className="cursor-pointer select-none whitespace-nowrap px-3 py-1.5 hover:text-slate-700"
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    Created
+                    {sortBy === 'createdAt' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                  </th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((t) => (
+                  <tr key={t.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-3 py-1.5">
+                      <Link to={`/tickets/${t.id}`} className="font-medium text-blue-700 hover:underline">
+                        #{t.ticketNumber}
+                      </Link>
+                    </td>
+                    <td className="max-w-xs truncate px-3 py-1.5">{t.title}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5">
+                      <StatusBadge status={t.status} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5">
+                      <PriorityBadge priority={t.priority} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">{t.departmentName ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5">{t.companyName}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5">{t.clientName}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5">{t.assignedToName ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">{format(new Date(t.createdAt), 'dd.MM.yyyy HH:mm')}</td>
+                  </tr>
+                ))}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-3 py-8 text-center text-slate-400">
+                      No tickets found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 

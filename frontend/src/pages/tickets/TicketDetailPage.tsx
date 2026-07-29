@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ticketsApi } from '../../api/tickets';
-import type { MessageType, TicketDetailDto } from '../../types';
-import { Card, Spinner, StatusBadge } from '../../components/ui';
+import type { TicketDetailDto } from '../../types';
+import { Card, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { OpenTicketForm } from './OpenTicketForm';
 import { CloseTicketForm } from './CloseTicketForm';
 import { TransferBranchForm } from './TransferBranchForm';
-import { MessageThread } from './MessageThread';
+import { TicketActivityFeed } from './TicketActivityFeed';
+import { TicketAssigneesPanel } from './TicketAssigneesPanel';
+import { WorkTimeEditor } from './WorkTimeEditor';
+import { ClientInfoPopover } from '../../components/ClientInfoPopover';
 import { KnowledgeBaseSearchPanel } from './KnowledgeBaseSearchPanel';
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -24,7 +27,6 @@ export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
   const [ticket, setTicket] = useState<TicketDetailDto | null>(null);
-  const [tab, setTab] = useState<MessageType>('Response');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,22 +51,52 @@ export default function TicketDetailPage() {
   const canReplyResponse = ticket.status !== 'Closed';
   const canReplyInternal = ticket.status !== 'Closed' && canSeeInternalNotes;
 
-  const responseMessages = ticket.messages.filter((m) => m.type === 'Response');
-  const internalMessages = ticket.messages.filter((m) => m.type === 'InternalNote');
-
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-bold text-slate-900">
             #{ticket.ticketNumber} — {ticket.title}
           </h1>
           <StatusBadge status={ticket.status} />
+          <PriorityBadge priority={ticket.priority} />
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          Submitted by {ticket.clientName} ({ticket.companyName}) on {format(new Date(ticket.createdAt), 'dd.MM.yyyy HH:mm')}
+          Submitted by{' '}
+          <ClientInfoPopover
+            name={ticket.clientName}
+            email={ticket.clientEmail}
+            phoneNumber={ticket.clientPhoneNumber}
+            companyName={ticket.companyName}
+          />{' '}
+          ({ticket.companyName}) on {format(new Date(ticket.createdAt), 'dd.MM.yyyy HH:mm')}
         </p>
       </div>
+
+      {ticket.status !== 'New' && (
+        <Card className="p-5">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <InfoRow label="Source" value={ticket.source} />
+            <InfoRow label="Help topic" value={ticket.helpTopicName} />
+            <InfoRow label="Department" value={ticket.departmentName} />
+            <InfoRow label="SLA plan" value={ticket.slaPlanName} />
+            <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />
+            <InfoRow label="Opened at" value={ticket.openedAtUtc ? format(new Date(ticket.openedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
+            <InfoRow label="Closed at" value={ticket.closedAtUtc ? format(new Date(ticket.closedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
+          </div>
+          {isStaff && (
+            <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+              <TicketAssigneesPanel ticket={ticket} onChanged={setTicket} />
+              <WorkTimeEditor ticket={ticket} onChanged={setTicket} />
+            </div>
+          )}
+          {canTransfer && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <TransferBranchForm ticket={ticket} onTransferred={setTicket} />
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="p-5">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Original request</h2>
@@ -82,19 +114,6 @@ export default function TicketDetailPage() {
         )}
       </Card>
 
-      {ticket.status !== 'New' && (
-        <Card className="grid grid-cols-2 gap-4 p-5 md:grid-cols-4">
-          <InfoRow label="Source" value={ticket.source} />
-          <InfoRow label="Help topic" value={ticket.helpTopicName} />
-          <InfoRow label="Department" value={ticket.departmentName} />
-          <InfoRow label="SLA plan" value={ticket.slaPlanName} />
-          <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />
-          <InfoRow label="Assigned to" value={ticket.assignedToName} />
-          <InfoRow label="Opened at" value={ticket.openedAtUtc ? format(new Date(ticket.openedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
-          <InfoRow label="Closed at" value={ticket.closedAtUtc ? format(new Date(ticket.closedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
-        </Card>
-      )}
-
       {ticket.status === 'Closed' && (
         <Card className="p-5">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Resolution</h2>
@@ -111,33 +130,16 @@ export default function TicketDetailPage() {
       {canSeeInternalNotes && <KnowledgeBaseSearchPanel initialQuery={ticket.title} />}
 
       {canOpen && <OpenTicketForm ticket={ticket} onOpened={setTicket} />}
-      {canTransfer && <TransferBranchForm ticket={ticket} onTransferred={setTicket} />}
 
       <Card className="p-5">
-        {canSeeInternalNotes ? (
-          <div className="mb-4 flex gap-2 border-b border-slate-200">
-            <button
-              onClick={() => setTab('Response')}
-              className={`px-3 py-2 text-sm font-medium ${tab === 'Response' ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
-            >
-              Response
-            </button>
-            <button
-              onClick={() => setTab('InternalNote')}
-              className={`px-3 py-2 text-sm font-medium ${tab === 'InternalNote' ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
-            >
-              Internal Note
-            </button>
-          </div>
-        ) : (
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Response</h2>
-        )}
-
-        {tab === 'Response' || !canSeeInternalNotes ? (
-          <MessageThread ticket={ticket} messages={responseMessages} type="Response" canReply={canReplyResponse} onMessageAdded={(m) => setTicket({ ...ticket, messages: [...ticket.messages, m] })} />
-        ) : (
-          <MessageThread ticket={ticket} messages={internalMessages} type="InternalNote" canReply={canReplyInternal} onMessageAdded={(m) => setTicket({ ...ticket, messages: [...ticket.messages, m] })} />
-        )}
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Activity</h2>
+        <TicketActivityFeed
+          ticket={ticket}
+          messages={ticket.messages}
+          canReplyResponse={canReplyResponse}
+          canReplyInternal={canReplyInternal}
+          onMessageAdded={(m) => setTicket({ ...ticket, messages: [...ticket.messages, m] })}
+        />
       </Card>
 
       {canClose && <CloseTicketForm ticket={ticket} onClosed={setTicket} />}

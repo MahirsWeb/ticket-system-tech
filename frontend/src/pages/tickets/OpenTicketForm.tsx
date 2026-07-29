@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
 import { ticketsApi } from '../../api/tickets';
-import type { DepartmentItemFull, LookupItem, SlaPlanItem, TicketDetailDto, TicketSource } from '../../types';
+import type { DepartmentItemFull, LookupItem, SlaPlanItem, TicketDetailDto, TicketPriority, TicketSource } from '../../types';
 import { Button, Card, ErrorText, Label, Select } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 
 const SOURCES: TicketSource[] = ['Phone', 'Email', 'TicketSystem', 'Other'];
+const PRIORITIES: TicketPriority[] = ['Emergency', 'High', 'Medium', 'Low'];
 
 export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; onOpened: (t: TicketDetailDto) => void }) {
   const user = useAuthStore((s) => s.user);
@@ -18,6 +19,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
 
   const [source, setSource] = useState<TicketSource>('TicketSystem');
+  const [priority, setPriority] = useState<TicketPriority>('Medium');
   const [helpTopicId, setHelpTopicId] = useState('');
   // Non-admin staff can only open tickets into their own branch; Admin may pick any branch.
   const [departmentId, setDepartmentId] = useState(isAdmin ? '' : user?.departmentId ?? '');
@@ -67,6 +69,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         helpTopicId,
         departmentId,
         slaPlanId,
+        priority,
         dueDateUtc: new Date(dueDate).toISOString(),
         assignedToUserId,
       });
@@ -125,6 +128,16 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
             {slaPlans.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.resolutionTimeHours}h resolution)
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Priority</Label>
+          <Select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)}>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
               </option>
             ))}
           </Select>

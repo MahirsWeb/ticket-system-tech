@@ -5,6 +5,7 @@ import type {
   TicketAttachmentDto,
   TicketDetailDto,
   TicketListItem,
+  TicketPriority,
   TicketSource,
 } from '../types';
 
@@ -14,6 +15,8 @@ export interface TicketListParams {
   assignedToUserId?: string;
   departmentId?: string;
   search?: string;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
@@ -30,6 +33,7 @@ export const ticketsApi = {
     helpTopicId: string;
     departmentId: string;
     slaPlanId: string;
+    priority: TicketPriority;
     dueDateUtc: string;
     assignedToUserId: string;
   }) => apiClient.post<TicketDetailDto>('/api/tickets/on-behalf', payload).then((r) => r.data),
@@ -46,6 +50,7 @@ export const ticketsApi = {
       helpTopicId: string;
       departmentId: string;
       slaPlanId: string;
+      priority: TicketPriority;
       dueDateUtc: string;
       assignedToUserId: string;
     }
@@ -56,6 +61,15 @@ export const ticketsApi = {
 
   transferBranch: (id: string, departmentId: string) =>
     apiClient.post<TicketDetailDto>(`/api/tickets/${id}/transfer-branch`, { departmentId }).then((r) => r.data),
+
+  addAssignee: (id: string, userId: string) =>
+    apiClient.post<TicketDetailDto>(`/api/tickets/${id}/assignees`, { userId }).then((r) => r.data),
+
+  removeAssignee: (id: string, userId: string) =>
+    apiClient.delete<TicketDetailDto>(`/api/tickets/${id}/assignees/${userId}`).then((r) => r.data),
+
+  setWorkTime: (id: string, startedAtUtc: string | null, endedAtUtc: string | null) =>
+    apiClient.patch<TicketDetailDto>(`/api/tickets/${id}/work-time`, { startedAtUtc, endedAtUtc }).then((r) => r.data),
 
   addMessage: (id: string, type: MessageType, bodyHtml: string) =>
     apiClient.post(`/api/tickets/${id}/messages`, { type, bodyHtml }).then((r) => r.data),
