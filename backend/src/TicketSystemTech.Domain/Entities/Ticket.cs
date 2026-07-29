@@ -26,6 +26,11 @@ public class Ticket : BaseEntity
     public HelpTopic? HelpTopic { get; set; }
     public Guid? DepartmentId { get; set; }
     public Department? Department { get; set; }
+
+    /// <summary>Set when the ticket's branch has sub-branches defined — a finer-grained routing/stats/assignment unit within the branch.</summary>
+    public Guid? SubBranchId { get; set; }
+    public SubBranch? SubBranch { get; set; }
+
     public Guid? SlaPlanId { get; set; }
     public SlaPlan? SlaPlan { get; set; }
     public DateTime? DueDateUtc { get; set; }

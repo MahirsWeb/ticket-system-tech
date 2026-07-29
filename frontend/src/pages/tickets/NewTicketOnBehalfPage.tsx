@@ -4,7 +4,7 @@ import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
 import { ticketsApi } from '../../api/tickets';
 import { emailIntegrationApi } from '../../api/emailIntegration';
-import type { ClientLookupResult, DepartmentItemFull, LookupItem, SlaPlanItem, TicketPriority, TicketSource } from '../../types';
+import type { ClientLookupResult, DepartmentItemFull, LookupItem, SlaPlanItem, SubBranchItemFull, TicketPriority, TicketSource } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { useAuthStore } from '../../store/authStore';
@@ -28,6 +28,7 @@ export default function NewTicketOnBehalfPage() {
 
   const [helpTopics, setHelpTopics] = useState<LookupItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
+  const [subBranches, setSubBranches] = useState<SubBranchItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItem[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
 
@@ -38,6 +39,7 @@ export default function NewTicketOnBehalfPage() {
   const [helpTopicId, setHelpTopicId] = useState('');
   // Non-admin staff can only open tickets into their own branch; Admin may pick any branch.
   const [departmentId, setDepartmentId] = useState(isAdmin ? '' : user?.departmentId ?? '');
+  const [subBranchId, setSubBranchId] = useState('');
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
@@ -58,17 +60,27 @@ export default function NewTicketOnBehalfPage() {
 
   useEffect(() => {
     if (!departmentId) {
+      setSubBranches([]);
+      setSubBranchId('');
+      return;
+    }
+    lookupsApi.subBranches(departmentId).then(setSubBranches);
+    setSubBranchId('');
+  }, [departmentId]);
+
+  useEffect(() => {
+    if (!departmentId) {
       setAssignees([]);
       return;
     }
     setAssignedToUserId('');
     Promise.all([
-      usersApi.list({ role: 'SupportAgent', departmentId }),
-      usersApi.list({ role: 'Consultant', departmentId }),
+      usersApi.list({ role: 'SupportAgent', departmentId, subBranchId: subBranchId || undefined }),
+      usersApi.list({ role: 'Consultant', departmentId, subBranchId: subBranchId || undefined }),
     ]).then(([support, consultants]) => {
       setAssignees([...support, ...consultants].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` })));
     });
-  }, [departmentId]);
+  }, [departmentId, subBranchId]);
 
   useEffect(() => {
     if (!fromEmailMessageId) return;
@@ -113,6 +125,10 @@ export default function NewTicketOnBehalfPage() {
       setError('All ticket fields are required.');
       return;
     }
+    if (subBranches.length > 0 && !subBranchId) {
+      setError('Please select a sub-branch.');
+      return;
+    }
     setLoading(true);
     try {
       const ticket = await ticketsApi.createOnBehalf({
@@ -122,6 +138,7 @@ export default function NewTicketOnBehalfPage() {
         source,
         helpTopicId,
         departmentId,
+        subBranchId: subBranchId || undefined,
         slaPlanId,
         priority,
         dueDateUtc: new Date(dueDate).toISOString(),
@@ -227,6 +244,19 @@ export default function NewTicketOnBehalfPage() {
                   </div>
                 )}
               </div>
+              {subBranches.length > 0 && (
+                <div>
+                  <Label>Sub-branch</Label>
+                  <Select value={subBranchId} onChange={(e) => setSubBranchId(e.target.value)}>
+                    <option value="">Select a sub-branch…</option>
+                    {subBranches.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label>SLA plan</Label>
                 <Select value={slaPlanId} onChange={(e) => setSlaPlanId(e.target.value)}>

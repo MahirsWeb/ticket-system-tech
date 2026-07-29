@@ -16,6 +16,7 @@ public record CreateTicketOnBehalfRequest(
     [Required] TicketSource Source,
     [Required] Guid HelpTopicId,
     [Required] Guid DepartmentId,
+    Guid? SubBranchId, // Required if the selected branch has sub-branches defined.
     [Required] Guid SlaPlanId,
     [Required] TicketPriority Priority,
     [Required] DateTime DueDateUtc,
@@ -26,6 +27,7 @@ public record OpenTicketRequest(
     [Required] TicketSource Source,
     [Required] Guid HelpTopicId,
     [Required] Guid DepartmentId,
+    Guid? SubBranchId, // Required if the selected branch has sub-branches defined.
     [Required] Guid SlaPlanId,
     [Required] TicketPriority Priority,
     [Required] DateTime DueDateUtc,
@@ -64,7 +66,9 @@ public record TicketListItem(
     DateTime? DueDateUtc,
     DateTime? ClosedAtUtc,
     Guid? DepartmentId,
-    string? DepartmentName
+    string? DepartmentName,
+    Guid? SubBranchId,
+    string? SubBranchName
 );
 
 public record TransferTicketBranchRequest(
@@ -104,6 +108,8 @@ public record TicketDetailDto(
     string? HelpTopicName,
     Guid? DepartmentId,
     string? DepartmentName,
+    Guid? SubBranchId,
+    string? SubBranchName,
     Guid? SlaPlanId,
     string? SlaPlanName,
     string? Priority,

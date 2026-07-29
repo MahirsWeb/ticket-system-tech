@@ -34,6 +34,17 @@ public record UpdateDepartmentRequest(
 
 public record DepartmentItemFull(Guid Id, string Name, string Email, bool IsActive);
 
+public record SubBranchItemFull(Guid Id, string Name, bool IsActive, Guid DepartmentId);
+
+public record CreateSubBranchRequest(
+    [Required] string Name
+);
+
+public record UpdateSubBranchRequest(
+    [Required] string Name,
+    bool IsActive
+);
+
 public record CreateSlaPlanRequest(
     [Required] string Name,
     [Range(1, 24 * 30)] int ResponseTimeHours,

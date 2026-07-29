@@ -7,6 +7,7 @@ export interface ReportParams {
   companyId?: string;
   agentId?: string;
   departmentId?: string;
+  subBranchId?: string;
 }
 
 export const reportsApi = {
@@ -22,7 +23,7 @@ export const reportsApi = {
     apiClient.get<PeriodComparisonPointDto[]>('/api/reports/period-comparison', { params }).then((r) => r.data),
   topIssues: (params: ReportParams & { limit?: number }) =>
     apiClient.get<TopIssueDto[]>('/api/reports/top-issues', { params }).then((r) => r.data),
-  aiInsights: (params: { from: string; to: string; companyId?: string; agentId?: string; departmentId?: string }) =>
+  aiInsights: (params: { from: string; to: string; companyId?: string; agentId?: string; departmentId?: string; subBranchId?: string }) =>
     apiClient.post<{ summary: string }>('/api/reports/ai-insights', params).then((r) => r.data),
 
   /// Triggers a browser download of the filtered ticket list as an Excel (.xlsx) workbook with a summary/chart sheet.

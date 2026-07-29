@@ -18,6 +18,6 @@ public record PeriodComparisonPointDto(string Label, DateTime PeriodStart, int C
 
 public record TopIssueDto(string HelpTopicName, int Count);
 
-public record AiInsightsRequest(DateTime From, DateTime To, Guid? CompanyId, Guid? AgentId, Guid? DepartmentId);
+public record AiInsightsRequest(DateTime From, DateTime To, Guid? CompanyId, Guid? AgentId, Guid? DepartmentId, Guid? SubBranchId);
 
 public record AiInsightsResponseDto(string Summary);

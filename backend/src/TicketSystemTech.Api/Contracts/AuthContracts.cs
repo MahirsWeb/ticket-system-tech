@@ -24,7 +24,9 @@ public record UserSummary(
     string? PhoneNumber,
     bool PhoneNumberPrompted,
     Guid? DepartmentId,
-    string? DepartmentName
+    string? DepartmentName,
+    Guid? SubBranchId,
+    string? SubBranchName
 );
 
 public record SetNewPasswordRequest(

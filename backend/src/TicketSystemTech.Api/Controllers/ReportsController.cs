@@ -34,7 +34,7 @@ public class ReportsController : ControllerBase
         _chatCompletionService = chatCompletionService;
     }
 
-    private IQueryable<Ticket> Scoped(DateTime from, DateTime to, Guid? companyId, Guid? agentId, Guid? departmentId)
+    private IQueryable<Ticket> Scoped(DateTime from, DateTime to, Guid? companyId, Guid? agentId, Guid? departmentId, Guid? subBranchId = null)
     {
         var query = _db.Tickets.AsNoTracking().Where(t => t.CreatedAt >= from && t.CreatedAt <= to);
 
@@ -42,6 +42,7 @@ public class ReportsController : ControllerBase
             query = query.Where(t => t.AssignedToUserId == agentId.Value);
 
         if (companyId.HasValue) query = query.Where(t => t.CompanyId == companyId.Value);
+        if (subBranchId.HasValue) query = query.Where(t => t.SubBranchId == subBranchId.Value);
 
         // Branches are isolated: non-admin staff only ever see their own branch's data, regardless of what's requested.
         if (_currentUser.Role != UserRole.Admin)
@@ -53,10 +54,10 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("summary")]
-    public async Task<ActionResult<ReportSummaryDto>> Summary(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId)
+    public async Task<ActionResult<ReportSummaryDto>> Summary(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, Guid? subBranchId)
     {
         var (f, t) = NormalizeRange(from, to);
-        var tickets = await Scoped(f, t, companyId, agentId, departmentId).ToListAsync();
+        var tickets = await Scoped(f, t, companyId, agentId, departmentId, subBranchId).ToListAsync();
 
         var totalNew = tickets.Count(x => x.Status == TicketStatus.New);
         var totalOpen = tickets.Count(x => x.Status is TicketStatus.Open or TicketStatus.InProgress);
@@ -76,10 +77,10 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("timeseries")]
-    public async Task<ActionResult<List<TimeSeriesPointDto>>> TimeSeries(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId)
+    public async Task<ActionResult<List<TimeSeriesPointDto>>> TimeSeries(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, Guid? subBranchId)
     {
         var (f, t) = NormalizeRange(from, to);
-        var tickets = await Scoped(f, t, companyId, agentId, departmentId).ToListAsync();
+        var tickets = await Scoped(f, t, companyId, agentId, departmentId, subBranchId).ToListAsync();
 
         var opened = tickets.GroupBy(x => DateOnly.FromDateTime(x.CreatedAt)).ToDictionary(g => g.Key, g => g.Count());
         var closed = tickets.Where(x => x.ClosedAtUtc.HasValue)
@@ -93,10 +94,10 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("leaderboard")]
-    public async Task<ActionResult<List<LeaderboardEntryDto>>> Leaderboard(DateTime? from, DateTime? to, Guid? companyId, Guid? departmentId)
+    public async Task<ActionResult<List<LeaderboardEntryDto>>> Leaderboard(DateTime? from, DateTime? to, Guid? companyId, Guid? departmentId, Guid? subBranchId)
     {
         var (f, t) = NormalizeRange(from, to);
-        var closed = await Scoped(f, t, companyId, null, departmentId)
+        var closed = await Scoped(f, t, companyId, null, departmentId, subBranchId)
             .Where(x => x.Status == TicketStatus.Closed && x.ClosedByUserId.HasValue)
             .GroupBy(x => x.ClosedByUserId!.Value)
             .Select(g => new { UserId = g.Key, Count = g.Count() })
@@ -137,10 +138,10 @@ public class ReportsController : ControllerBase
     /// <summary>Buckets tickets created in range by week/month/quarter/year, so periods can be compared to spot the busiest/quietest ones.</summary>
     [HttpGet("period-comparison")]
     public async Task<ActionResult<List<PeriodComparisonPointDto>>> PeriodComparison(
-        DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, [FromQuery] string groupBy = "month")
+        DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, Guid? subBranchId, [FromQuery] string groupBy = "month")
     {
         var (f, t) = NormalizeRange(from, to);
-        var createdDates = await Scoped(f, t, companyId, agentId, departmentId).Select(x => x.CreatedAt).ToListAsync();
+        var createdDates = await Scoped(f, t, companyId, agentId, departmentId, subBranchId).Select(x => x.CreatedAt).ToListAsync();
 
         DateTime BucketStart(DateTime d) => groupBy.ToLowerInvariant() switch
         {
@@ -168,10 +169,10 @@ public class ReportsController : ControllerBase
 
     /// <summary>Ranks how many tickets fell under each help topic in the range — the clearest signal of what's causing the most trouble.</summary>
     [HttpGet("top-issues")]
-    public async Task<ActionResult<List<TopIssueDto>>> TopIssues(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, [FromQuery] int limit = 10)
+    public async Task<ActionResult<List<TopIssueDto>>> TopIssues(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, Guid? subBranchId, [FromQuery] int limit = 10)
     {
         var (f, t) = NormalizeRange(from, to);
-        var grouped = await Scoped(f, t, companyId, agentId, departmentId)
+        var grouped = await Scoped(f, t, companyId, agentId, departmentId, subBranchId)
             .Where(x => x.HelpTopicId.HasValue)
             .GroupBy(x => x.HelpTopicId!.Value)
             .Select(g => new { HelpTopicId = g.Key, Count = g.Count() })
@@ -195,7 +196,7 @@ public class ReportsController : ControllerBase
         if ((request.To - request.From).TotalDays < 28)
             return BadRequest(new { message = "Select a period of at least one month for AI analysis." });
 
-        var raw = await Scoped(request.From, request.To, request.CompanyId, request.AgentId, request.DepartmentId)
+        var raw = await Scoped(request.From, request.To, request.CompanyId, request.AgentId, request.DepartmentId, request.SubBranchId)
             .Select(x => new { x.Title, x.HelpTopicId, x.Status })
             .ToListAsync();
 
@@ -228,10 +229,10 @@ public class ReportsController : ControllerBase
     /// scoping as the other report endpoints.
     /// </summary>
     [HttpGet("export")]
-    public async Task<IActionResult> Export(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId)
+    public async Task<IActionResult> Export(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, Guid? subBranchId)
     {
         var (f, t) = NormalizeRange(from, to);
-        var tickets = await Scoped(f, t, companyId, agentId, departmentId)
+        var tickets = await Scoped(f, t, companyId, agentId, departmentId, subBranchId)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync();
 

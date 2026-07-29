@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
 import { ticketsApi } from '../../api/tickets';
-import type { DepartmentItemFull, LookupItem, SlaPlanItem, TicketDetailDto, TicketPriority, TicketSource } from '../../types';
+import type { DepartmentItemFull, LookupItem, SlaPlanItem, SubBranchItemFull, TicketDetailDto, TicketPriority, TicketSource } from '../../types';
 import { Button, Card, ErrorText, Label, Select } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 
@@ -15,6 +15,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
 
   const [helpTopics, setHelpTopics] = useState<LookupItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
+  const [subBranches, setSubBranches] = useState<SubBranchItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItem[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
 
@@ -23,6 +24,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [helpTopicId, setHelpTopicId] = useState('');
   // Non-admin staff can only open tickets into their own branch; Admin may pick any branch.
   const [departmentId, setDepartmentId] = useState(isAdmin ? '' : user?.departmentId ?? '');
+  const [subBranchId, setSubBranchId] = useState('');
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
@@ -43,17 +45,27 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
 
   useEffect(() => {
     if (!departmentId) {
+      setSubBranches([]);
+      setSubBranchId('');
+      return;
+    }
+    lookupsApi.subBranches(departmentId).then(setSubBranches);
+    setSubBranchId('');
+  }, [departmentId]);
+
+  useEffect(() => {
+    if (!departmentId) {
       setAssignees([]);
       return;
     }
     setAssignedToUserId('');
     Promise.all([
-      usersApi.list({ role: 'SupportAgent', departmentId }),
-      usersApi.list({ role: 'Consultant', departmentId }),
+      usersApi.list({ role: 'SupportAgent', departmentId, subBranchId: subBranchId || undefined }),
+      usersApi.list({ role: 'Consultant', departmentId, subBranchId: subBranchId || undefined }),
     ]).then(([support, consultants]) => {
       setAssignees([...support, ...consultants].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` })));
     });
-  }, [departmentId]);
+  }, [departmentId, subBranchId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,12 +74,17 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
       setError('All fields are required to open a ticket.');
       return;
     }
+    if (subBranches.length > 0 && !subBranchId) {
+      setError('Please select a sub-branch.');
+      return;
+    }
     setLoading(true);
     try {
       const updated = await ticketsApi.open(ticket.id, {
         source,
         helpTopicId,
         departmentId,
+        subBranchId: subBranchId || undefined,
         slaPlanId,
         priority,
         dueDateUtc: new Date(dueDate).toISOString(),
@@ -122,6 +139,19 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
             </div>
           )}
         </div>
+        {subBranches.length > 0 && (
+          <div>
+            <Label>Sub-branch</Label>
+            <Select value={subBranchId} onChange={(e) => setSubBranchId(e.target.value)}>
+              <option value="">Select a sub-branch…</option>
+              {subBranches.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
         <div>
           <Label>SLA plan</Label>
           <Select value={slaPlanId} onChange={(e) => setSlaPlanId(e.target.value)}>

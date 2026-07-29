@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { DepartmentItemFull, LookupItem, LookupItemFull, SlaPlanItem, SlaPlanItemFull } from '../types';
+import type { DepartmentItemFull, LookupItem, LookupItemFull, SlaPlanItem, SlaPlanItemFull, SubBranchItemFull } from '../types';
 
 export const lookupsApi = {
   companies: () => apiClient.get<LookupItem[]>('/api/companies').then((r) => r.data),
@@ -14,6 +14,16 @@ export const lookupsApi = {
     apiClient.post<DepartmentItemFull>('/api/departments', { name, email }).then((r) => r.data),
   updateDepartment: (id: string, name: string, email: string, isActive: boolean) =>
     apiClient.put<DepartmentItemFull>(`/api/departments/${id}`, { name, email, isActive }).then((r) => r.data),
+
+  // Sub-branches (podgrane) — optional finer unit within a branch, sharing its email.
+  subBranches: (departmentId: string) =>
+    apiClient.get<SubBranchItemFull[]>(`/api/departments/${departmentId}/sub-branches`).then((r) => r.data),
+  subBranchesAdmin: (departmentId: string) =>
+    apiClient.get<SubBranchItemFull[]>(`/api/departments/${departmentId}/sub-branches`, { params: { includeInactive: true } }).then((r) => r.data),
+  createSubBranch: (departmentId: string, name: string) =>
+    apiClient.post<SubBranchItemFull>(`/api/departments/${departmentId}/sub-branches`, { name }).then((r) => r.data),
+  updateSubBranch: (id: string, name: string, isActive: boolean) =>
+    apiClient.put<SubBranchItemFull>(`/api/sub-branches/${id}`, { name, isActive }).then((r) => r.data),
 
   helpTopics: () => apiClient.get<LookupItem[]>('/api/help-topics').then((r) => r.data),
   helpTopicsAdmin: () =>

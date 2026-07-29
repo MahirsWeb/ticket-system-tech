@@ -52,6 +52,7 @@ public class UsersController : ControllerBase
         if (request.Role == UserRole.Client)
             return BadRequest(new { message = "Use POST /api/users/clients to create client accounts." });
 
+        Guid? subBranchId = null;
         if (request.Role is UserRole.Consultant or UserRole.SupportAgent)
         {
             if (request.DepartmentId is null)
@@ -59,10 +60,27 @@ public class UsersController : ControllerBase
             var departmentExists = await _db.Departments.AnyAsync(d => d.Id == request.DepartmentId.Value && d.IsActive);
             if (!departmentExists)
                 return BadRequest(new { message = "Branch not found." });
+
+            var subBranchError = await ValidateSubBranchAsync(request.DepartmentId.Value, request.SubBranchId);
+            if (subBranchError is not null) return BadRequest(new { message = subBranchError });
+            subBranchId = request.SubBranchId;
         }
 
         return await CreateUserInternal(request.FirstName, request.LastName, request.Email, request.Role, companyId: null,
-            departmentId: request.Role is UserRole.Consultant or UserRole.SupportAgent ? request.DepartmentId : null);
+            departmentId: request.Role is UserRole.Consultant or UserRole.SupportAgent ? request.DepartmentId : null,
+            subBranchId: subBranchId);
+    }
+
+    /// <summary>A branch with sub-branches requires picking exactly one of them; a branch without any must not receive one.</summary>
+    private async Task<string?> ValidateSubBranchAsync(Guid departmentId, Guid? subBranchId)
+    {
+        var activeSubBranches = await _db.SubBranches.Where(s => s.DepartmentId == departmentId && s.IsActive).ToListAsync();
+        if (activeSubBranches.Count == 0)
+            return subBranchId.HasValue ? "This branch has no sub-branches." : null;
+
+        if (subBranchId is null) return "A sub-branch must be selected for this branch.";
+        if (!activeSubBranches.Any(s => s.Id == subBranchId.Value)) return "Sub-branch not found for this branch.";
+        return null;
     }
 
     /// <summary>Admin or staff (Consultant/SupportAgent): create a Client account tied to an existing company.</summary>
@@ -74,7 +92,7 @@ public class UsersController : ControllerBase
         if (!companyExists)
             return BadRequest(new { message = "Company not found." });
 
-        return await CreateUserInternal(request.FirstName, request.LastName, request.Email, UserRole.Client, request.CompanyId, departmentId: null);
+        return await CreateUserInternal(request.FirstName, request.LastName, request.Email, UserRole.Client, request.CompanyId, departmentId: null, subBranchId: null);
     }
 
     /// <summary>Regenerates a fresh short-lived temporary password (e.g. if the previous one expired unused).</summary>
@@ -109,35 +127,42 @@ public class UsersController : ControllerBase
         return Ok(new CreatedUserResponse(user.Id, user.Email!, tempPassword, user.TemporaryPasswordExpiresAtUtc.Value));
     }
 
-    /// <summary>Admin-only: (re)assign the branch a Consultant/SupportAgent belongs to.</summary>
+    /// <summary>Admin-only: (re)assign the branch (and sub-branch, if applicable) a Consultant/SupportAgent belongs to.</summary>
     [HttpPatch("{id:guid}/department")]
     [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<IActionResult> SetDepartment(Guid id, SetUserDepartmentRequest request)
+    public async Task<IActionResult> SetBranch(Guid id, SetUserBranchRequest request)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());
         if (user is null) return NotFound();
         if (user.Role is not (UserRole.Consultant or UserRole.SupportAgent))
             return BadRequest(new { message = "Only Consultant and Support Agent accounts belong to a branch." });
 
+        Guid? subBranchId = null;
         if (request.DepartmentId.HasValue)
         {
             var departmentExists = await _db.Departments.AnyAsync(d => d.Id == request.DepartmentId.Value && d.IsActive);
             if (!departmentExists) return BadRequest(new { message = "Branch not found." });
+
+            var subBranchError = await ValidateSubBranchAsync(request.DepartmentId.Value, request.SubBranchId);
+            if (subBranchError is not null) return BadRequest(new { message = subBranchError });
+            subBranchId = request.SubBranchId;
         }
 
         user.DepartmentId = request.DepartmentId;
+        user.SubBranchId = subBranchId;
         await _userManager.UpdateAsync(user);
         return Ok();
     }
 
     [HttpGet]
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
-    public async Task<ActionResult<List<UserListItem>>> List([FromQuery] UserRole? role, [FromQuery] Guid? companyId, [FromQuery] Guid? departmentId)
+    public async Task<ActionResult<List<UserListItem>>> List([FromQuery] UserRole? role, [FromQuery] Guid? companyId, [FromQuery] Guid? departmentId, [FromQuery] Guid? subBranchId)
     {
         var query = _userManager.Users.AsQueryable();
         if (role.HasValue) query = query.Where(u => u.Role == role.Value);
         if (companyId.HasValue) query = query.Where(u => u.CompanyId == companyId.Value);
         if (departmentId.HasValue) query = query.Where(u => u.DepartmentId == departmentId.Value);
+        if (subBranchId.HasValue) query = query.Where(u => u.SubBranchId == subBranchId.Value);
 
         // Branches are isolated: non-admin staff only see staff members from their own branch. Clients are shared across branches.
         if (_currentUser.Role != UserRole.Admin)
@@ -148,12 +173,14 @@ public class UsersController : ControllerBase
         var users = await query.OrderBy(u => u.FirstName).ToListAsync();
         var companyNames = await _db.Companies.ToDictionaryAsync(c => c.Id, c => c.Name);
         var departmentNames = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name);
+        var subBranchNames = await _db.SubBranches.ToDictionaryAsync(s => s.Id, s => s.Name);
 
         var result = users.Select(u => new UserListItem(
             u.Id, u.FirstName, u.LastName, u.Email!, u.Role.ToString(),
             u.CompanyId, u.CompanyId.HasValue && companyNames.TryGetValue(u.CompanyId.Value, out var n) ? n : null,
             u.PhoneNumber, u.IsActive, u.EmailConfirmed, u.CreatedAtUtc,
-            u.DepartmentId, u.DepartmentId.HasValue && departmentNames.TryGetValue(u.DepartmentId.Value, out var dn) ? dn : null)).ToList();
+            u.DepartmentId, u.DepartmentId.HasValue && departmentNames.TryGetValue(u.DepartmentId.Value, out var dn) ? dn : null,
+            u.SubBranchId, u.SubBranchId.HasValue && subBranchNames.TryGetValue(u.SubBranchId.Value, out var sn) ? sn : null)).ToList();
 
         return Ok(result);
     }
@@ -206,7 +233,7 @@ public class UsersController : ControllerBase
         return Ok();
     }
 
-    private async Task<ActionResult<CreatedUserResponse>> CreateUserInternal(string firstName, string lastName, string email, UserRole role, Guid? companyId, Guid? departmentId)
+    private async Task<ActionResult<CreatedUserResponse>> CreateUserInternal(string firstName, string lastName, string email, UserRole role, Guid? companyId, Guid? departmentId, Guid? subBranchId)
     {
         var existing = await _userManager.FindByEmailAsync(email);
         if (existing is not null)
@@ -224,6 +251,7 @@ public class UsersController : ControllerBase
             Role = role,
             CompanyId = companyId,
             DepartmentId = departmentId,
+            SubBranchId = subBranchId,
             IsActive = true,
             MustChangePassword = true,
             TemporaryPasswordExpiresAtUtc = expiresAt,

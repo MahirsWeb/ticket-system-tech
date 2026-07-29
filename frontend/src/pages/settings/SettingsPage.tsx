@@ -1,8 +1,72 @@
 import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
 import { settingsApi } from '../../api/settings';
-import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull } from '../../types';
+import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull, SubBranchItemFull } from '../../types';
 import { Button, Card, ErrorText, Input, Label, SuccessText } from '../../components/ui';
+
+function SubBranchesInline({ departmentId }: { departmentId: string }) {
+  const [items, setItems] = useState<SubBranchItemFull[]>([]);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  function refresh() {
+    lookupsApi.subBranchesAdmin(departmentId).then((items) => {
+      setItems(items);
+      setLoading(false);
+    });
+  }
+
+  useEffect(refresh, [departmentId]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!name.trim()) return;
+    try {
+      await lookupsApi.createSubBranch(departmentId, name.trim());
+      setName('');
+      refresh();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not add sub-branch.');
+    }
+  }
+
+  async function handleToggleActive(item: SubBranchItemFull) {
+    await lookupsApi.updateSubBranch(item.id, item.name, !item.isActive);
+    refresh();
+  }
+
+  if (loading) return <p className="py-2 text-xs text-slate-400">Loading sub-branches…</p>;
+
+  return (
+    <div className="mt-2 rounded-md bg-slate-50 p-3">
+      <p className="mb-2 text-xs text-slate-500">
+        Optional finer units within this branch — e.g. "Consulting" and "Technical Support" both under "Software",
+        sharing its email but tracked separately for statistics and ticket assignment. If any exist, staff and
+        tickets in this branch must pick one.
+      </p>
+      <form onSubmit={handleCreate} className="mb-2 flex gap-2">
+        <Input placeholder="Sub-branch name…" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs text-xs" />
+        <Button type="submit" variant="secondary" className="text-xs">
+          Add
+        </Button>
+      </form>
+      <ErrorText>{error}</ErrorText>
+      <ul className="divide-y divide-slate-200">
+        {items.map((item) => (
+          <li key={item.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+            <span className={item.isActive ? 'text-slate-700' : 'text-slate-400 line-through'}>{item.name}</span>
+            <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
+              {item.isActive ? 'Deactivate' : 'Reactivate'}
+            </button>
+          </li>
+        ))}
+        {items.length === 0 && <li className="py-2 text-xs text-slate-400">No sub-branches — this branch is used as a single unit.</li>}
+      </ul>
+    </div>
+  );
+}
 
 function OverdueNotificationsSection() {
   const [notifyOnSlaBreach, setNotifyOnSlaBreach] = useState(true);
@@ -78,6 +142,7 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingEmail, setEditingEmail] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -130,45 +195,54 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
       <ErrorText>{error}</ErrorText>
       <ul className="divide-y divide-slate-100">
         {items.map((item) => (
-          <li key={item.id} className="flex items-center justify-between gap-3 py-2">
-            {editingId === item.id ? (
-              <div className="flex flex-1 gap-2">
-                <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
-                <Input type="email" value={editingEmail} onChange={(e) => setEditingEmail(e.target.value)} className="max-w-xs" />
-              </div>
-            ) : (
-              <span className={item.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}>
-                {item.name} <span className="text-xs text-slate-400">— {item.email}</span>
-              </span>
-            )}
-            <div className="flex shrink-0 gap-2 text-xs">
+          <li key={item.id} className="py-2">
+            <div className="flex items-center justify-between gap-3">
               {editingId === item.id ? (
-                <>
-                  <button className="font-medium text-blue-700 hover:underline" onClick={() => handleSaveEdit(item)}>
-                    Save
-                  </button>
-                  <button className="text-slate-500 hover:underline" onClick={() => setEditingId(null)}>
-                    Cancel
-                  </button>
-                </>
+                <div className="flex flex-1 gap-2">
+                  <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
+                  <Input type="email" value={editingEmail} onChange={(e) => setEditingEmail(e.target.value)} className="max-w-xs" />
+                </div>
               ) : (
-                <>
-                  <button
-                    className="font-medium text-blue-700 hover:underline"
-                    onClick={() => {
-                      setEditingId(item.id);
-                      setEditingName(item.name);
-                      setEditingEmail(item.email);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button className="text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
-                    {item.isActive ? 'Deactivate' : 'Reactivate'}
-                  </button>
-                </>
+                <span className={item.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}>
+                  {item.name} <span className="text-xs text-slate-400">— {item.email}</span>
+                </span>
               )}
+              <div className="flex shrink-0 gap-2 text-xs">
+                {editingId === item.id ? (
+                  <>
+                    <button className="font-medium text-blue-700 hover:underline" onClick={() => handleSaveEdit(item)}>
+                      Save
+                    </button>
+                    <button className="text-slate-500 hover:underline" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="text-slate-500 hover:underline"
+                      onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                    >
+                      {expandedId === item.id ? 'Hide sub-branches' : 'Sub-branches'}
+                    </button>
+                    <button
+                      className="font-medium text-blue-700 hover:underline"
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setEditingName(item.name);
+                        setEditingEmail(item.email);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button className="text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
+                      {item.isActive ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+            {expandedId === item.id && <SubBranchesInline departmentId={item.id} />}
           </li>
         ))}
         {items.length === 0 && <li className="py-4 text-center text-sm text-slate-400">No branches yet.</li>}

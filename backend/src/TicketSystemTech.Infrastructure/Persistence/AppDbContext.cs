@@ -25,6 +25,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<EmailTicketMark> EmailTicketMarks => Set<EmailTicketMark>();
     public DbSet<TicketAssignee> TicketAssignees => Set<TicketAssignee>();
     public DbSet<OverdueNotificationSettings> OverdueNotificationSettings => Set<OverdueNotificationSettings>();
+    public DbSet<SubBranch> SubBranches => Set<SubBranch>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -39,7 +40,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasIndex(u => u.CompanyId);
             e.HasIndex(u => u.Role);
             e.HasIndex(u => u.DepartmentId);
+            e.HasIndex(u => u.SubBranchId);
             e.HasOne<Department>().WithMany().HasForeignKey(u => u.DepartmentId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<SubBranch>().WithMany().HasForeignKey(u => u.SubBranchId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Company>(e =>
@@ -75,10 +78,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasIndex(t => t.ClientId);
             e.HasIndex(t => t.CreatedAt);
             e.HasIndex(t => t.DepartmentId);
+            e.HasIndex(t => t.SubBranchId);
 
             e.HasOne(t => t.Company).WithMany().HasForeignKey(t => t.CompanyId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.HelpTopic).WithMany().HasForeignKey(t => t.HelpTopicId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.Department).WithMany().HasForeignKey(t => t.DepartmentId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(t => t.SubBranch).WithMany().HasForeignKey(t => t.SubBranchId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.SlaPlan).WithMany().HasForeignKey(t => t.SlaPlanId).OnDelete(DeleteBehavior.SetNull);
 
             e.HasMany(t => t.Messages).WithOne(m => m.Ticket).HasForeignKey(m => m.TicketId).OnDelete(DeleteBehavior.Cascade);
@@ -120,6 +125,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         {
             e.HasIndex(a => new { a.TicketId, a.UserId }).IsUnique();
             e.HasOne(a => a.Ticket).WithMany(t => t.Assignees).HasForeignKey(a => a.TicketId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SubBranch>(e =>
+        {
+            e.Property(s => s.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(s => new { s.DepartmentId, s.Name }).IsUnique();
+            e.HasOne(s => s.Department).WithMany().HasForeignKey(s => s.DepartmentId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

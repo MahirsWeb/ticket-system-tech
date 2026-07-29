@@ -14,6 +14,7 @@ export interface TicketListParams {
   companyId?: string;
   assignedToUserId?: string;
   departmentId?: string;
+  subBranchId?: string;
   search?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
@@ -32,6 +33,7 @@ export const ticketsApi = {
     source: TicketSource;
     helpTopicId: string;
     departmentId: string;
+    subBranchId?: string;
     slaPlanId: string;
     priority: TicketPriority;
     dueDateUtc: string;
@@ -49,6 +51,7 @@ export const ticketsApi = {
       source: TicketSource;
       helpTopicId: string;
       departmentId: string;
+      subBranchId?: string;
       slaPlanId: string;
       priority: TicketPriority;
       dueDateUtc: string;

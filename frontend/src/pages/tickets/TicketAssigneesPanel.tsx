@@ -13,11 +13,12 @@ export function TicketAssigneesPanel({ ticket, onChanged }: { ticket: TicketDeta
 
   useEffect(() => {
     if (!ticket.departmentId) return;
+    const subBranchId = ticket.subBranchId ?? undefined;
     Promise.all([
-      usersApi.list({ role: 'Consultant', departmentId: ticket.departmentId }),
-      usersApi.list({ role: 'SupportAgent', departmentId: ticket.departmentId }),
+      usersApi.list({ role: 'Consultant', departmentId: ticket.departmentId, subBranchId }),
+      usersApi.list({ role: 'SupportAgent', departmentId: ticket.departmentId, subBranchId }),
     ]).then(([a, b]) => setCandidates([...a, ...b]));
-  }, [ticket.departmentId]);
+  }, [ticket.departmentId, ticket.subBranchId]);
 
   const assignedIds = new Set(ticket.assignees.map((a) => a.userId));
   const available = candidates.filter((c) => !assignedIds.has(c.id));

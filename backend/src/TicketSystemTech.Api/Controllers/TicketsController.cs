@@ -95,11 +95,16 @@ public class TicketsController : ControllerBase
         if (_currentUser.Role != UserRole.Admin && request.DepartmentId != _currentUser.DepartmentId)
             return BadRequest(new { message = "You can only open tickets into your own branch." });
 
+        var subBranchError = await ValidateSubBranchAsync(request.DepartmentId, request.SubBranchId);
+        if (subBranchError is not null) return BadRequest(new { message = subBranchError });
+
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
             && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (assignee.DepartmentId != request.DepartmentId)
             return BadRequest(new { message = "Assignee must belong to the selected branch." });
+        if (request.SubBranchId.HasValue && assignee.SubBranchId != request.SubBranchId)
+            return BadRequest(new { message = "Assignee must belong to the selected sub-branch." });
 
         var ticket = new Ticket
         {
@@ -112,6 +117,7 @@ public class TicketsController : ControllerBase
             Source = request.Source,
             HelpTopicId = request.HelpTopicId,
             DepartmentId = request.DepartmentId,
+            SubBranchId = request.SubBranchId,
             SlaPlanId = request.SlaPlanId,
             Priority = request.Priority,
             DueDateUtc = request.DueDateUtc,
@@ -147,6 +153,7 @@ public class TicketsController : ControllerBase
         [FromQuery] Guid? companyId,
         [FromQuery] Guid? assignedToUserId,
         [FromQuery] Guid? departmentId,
+        [FromQuery] Guid? subBranchId,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -171,6 +178,7 @@ public class TicketsController : ControllerBase
         if (assignedToUserId.HasValue)
             query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value || t.Assignees.Any(a => a.UserId == assignedToUserId.Value));
         if (departmentId.HasValue) query = query.Where(t => t.DepartmentId == departmentId.Value);
+        if (subBranchId.HasValue) query = query.Where(t => t.SubBranchId == subBranchId.Value);
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(t => t.TicketNumber.Contains(search) || t.Title.Contains(search));
 
@@ -195,7 +203,7 @@ public class TicketsController : ControllerBase
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(t => new
             {
-                t.Id, t.TicketNumber, t.Title, t.Status, t.Priority, t.CompanyId, t.ClientId, t.AssignedToUserId, t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc, t.DepartmentId
+                t.Id, t.TicketNumber, t.Title, t.Status, t.Priority, t.CompanyId, t.ClientId, t.AssignedToUserId, t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc, t.DepartmentId, t.SubBranchId
             })
             .ToListAsync();
 
@@ -206,6 +214,8 @@ public class TicketsController : ControllerBase
         var companies = await _db.Companies.Where(c => companyIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name);
         var departmentIds = page_.Where(t => t.DepartmentId.HasValue).Select(t => t.DepartmentId!.Value).Distinct().ToList();
         var departments = await _db.Departments.Where(d => departmentIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name);
+        var subBranchIds = page_.Where(t => t.SubBranchId.HasValue).Select(t => t.SubBranchId!.Value).Distinct().ToList();
+        var subBranches = await _db.SubBranches.Where(s => subBranchIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name);
 
         var items = page_.Select(t => new TicketListItem(
             t.Id, t.TicketNumber, t.Title, t.Status.ToString(), t.Priority?.ToString(),
@@ -213,7 +223,8 @@ public class TicketsController : ControllerBase
             users.GetValueOrDefault(t.ClientId, ""),
             t.AssignedToUserId.HasValue ? users.GetValueOrDefault(t.AssignedToUserId.Value) : null,
             t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc,
-            t.DepartmentId, t.DepartmentId.HasValue ? departments.GetValueOrDefault(t.DepartmentId.Value) : null
+            t.DepartmentId, t.DepartmentId.HasValue ? departments.GetValueOrDefault(t.DepartmentId.Value) : null,
+            t.SubBranchId, t.SubBranchId.HasValue ? subBranches.GetValueOrDefault(t.SubBranchId.Value) : null
         )).ToList();
 
         return Ok(new PagedResult<TicketListItem>(items, page, pageSize, totalCount));
@@ -241,15 +252,21 @@ public class TicketsController : ControllerBase
         if (_currentUser.Role != UserRole.Admin && request.DepartmentId != _currentUser.DepartmentId)
             return BadRequest(new { message = "You can only open tickets into your own branch." });
 
+        var subBranchError = await ValidateSubBranchAsync(request.DepartmentId, request.SubBranchId);
+        if (subBranchError is not null) return BadRequest(new { message = subBranchError });
+
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
             && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (assignee.DepartmentId != request.DepartmentId)
             return BadRequest(new { message = "Assignee must belong to the selected branch." });
+        if (request.SubBranchId.HasValue && assignee.SubBranchId != request.SubBranchId)
+            return BadRequest(new { message = "Assignee must belong to the selected sub-branch." });
 
         ticket.Source = request.Source;
         ticket.HelpTopicId = request.HelpTopicId;
         ticket.DepartmentId = request.DepartmentId;
+        ticket.SubBranchId = request.SubBranchId;
         ticket.SlaPlanId = request.SlaPlanId;
         ticket.Priority = request.Priority;
         ticket.DueDateUtc = request.DueDateUtc;
@@ -299,6 +316,7 @@ public class TicketsController : ControllerBase
         var transferredBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
 
         ticket.DepartmentId = toDepartment.Id;
+        ticket.SubBranchId = null; // the sub-branch belonged to the old branch; staff can re-pick one for the new branch via the assignees/open flow
         ticket.AssignedToUserId = null; // the previous assignee(s) likely don't belong to the destination branch
         var oldAssignees = await _db.TicketAssignees.Where(a => a.TicketId == ticket.Id).ToListAsync();
         _db.TicketAssignees.RemoveRange(oldAssignees);
@@ -393,6 +411,8 @@ public class TicketsController : ControllerBase
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId && (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent));
         if (user is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (user.DepartmentId != ticket.DepartmentId) return BadRequest(new { message = "Assignee must belong to this ticket's branch." });
+        if (ticket.SubBranchId.HasValue && user.SubBranchId != ticket.SubBranchId)
+            return BadRequest(new { message = "Assignee must belong to this ticket's sub-branch." });
 
         var alreadyAssigned = await _db.TicketAssignees.AnyAsync(a => a.TicketId == id && a.UserId == request.UserId);
         if (alreadyAssigned) return BadRequest(new { message = "This person is already assigned to the ticket." });
@@ -505,6 +525,18 @@ public class TicketsController : ControllerBase
             $"{author.FirstName} {author.LastName}", message.CreatedAt, new List<TicketAttachmentDto>()));
     }
 
+    /// <summary>A branch with sub-branches requires picking exactly one of them; a branch without any must not receive one.</summary>
+    private async Task<string?> ValidateSubBranchAsync(Guid departmentId, Guid? subBranchId)
+    {
+        var activeSubBranches = await _db.SubBranches.Where(s => s.DepartmentId == departmentId && s.IsActive).ToListAsync();
+        if (activeSubBranches.Count == 0)
+            return subBranchId.HasValue ? "This branch has no sub-branches." : null;
+
+        if (subBranchId is null) return "A sub-branch must be selected for this branch.";
+        if (!activeSubBranches.Any(s => s.Id == subBranchId.Value)) return "Sub-branch not found for this branch.";
+        return null;
+    }
+
     private bool CanAccess(Ticket ticket) => _currentUser.Role switch
     {
         UserRole.Admin => true,
@@ -520,6 +552,7 @@ public class TicketsController : ControllerBase
             .Include(x => x.Company)
             .Include(x => x.HelpTopic)
             .Include(x => x.Department)
+            .Include(x => x.SubBranch)
             .Include(x => x.SlaPlan)
             .Include(x => x.Attachments)
             .FirstAsync(x => x.Id == ticketId);
@@ -562,6 +595,7 @@ public class TicketsController : ControllerBase
             t.ClientId, NameOf(t.ClientId), clientUser?.Email, clientUser?.PhoneNumber,
             t.CompanyId, t.Company?.Name ?? "",
             t.Source?.ToString(), t.HelpTopicId, t.HelpTopic?.Name, t.DepartmentId, t.Department?.Name,
+            t.SubBranchId, t.SubBranch?.Name,
             t.SlaPlanId, t.SlaPlan?.Name, t.Priority?.ToString(), t.DueDateUtc, t.AssignedToUserId,
             t.AssignedToUserId.HasValue ? NameOf(t.AssignedToUserId.Value) : null,
             assigneeDtos, t.WorkStartedAtUtc, t.WorkEndedAtUtc,

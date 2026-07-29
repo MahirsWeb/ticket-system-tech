@@ -19,6 +19,8 @@ export interface UserSummary {
   phoneNumberPrompted: boolean;
   departmentId: string | null;
   departmentName: string | null;
+  subBranchId: string | null;
+  subBranchName: string | null;
 }
 
 export interface LoginResponse {
@@ -49,6 +51,13 @@ export interface DepartmentItemFull {
   name: string;
   email: string;
   isActive: boolean;
+}
+
+export interface SubBranchItemFull {
+  id: string;
+  name: string;
+  isActive: boolean;
+  departmentId: string;
 }
 
 export interface SlaPlanItemFull {
@@ -112,6 +121,8 @@ export interface TicketListItem {
   closedAtUtc: string | null;
   departmentId: string | null;
   departmentName: string | null;
+  subBranchId: string | null;
+  subBranchName: string | null;
 }
 
 export interface TicketAssigneeDto {
@@ -143,6 +154,8 @@ export interface TicketDetailDto {
   helpTopicName: string | null;
   departmentId: string | null;
   departmentName: string | null;
+  subBranchId: string | null;
+  subBranchName: string | null;
   slaPlanId: string | null;
   slaPlanName: string | null;
   priority: TicketPriority | null;
@@ -182,6 +195,8 @@ export interface UserListItemDto {
   createdAtUtc: string;
   departmentId: string | null;
   departmentName: string | null;
+  subBranchId: string | null;
+  subBranchName: string | null;
 }
 
 export interface ReportSummaryDto {

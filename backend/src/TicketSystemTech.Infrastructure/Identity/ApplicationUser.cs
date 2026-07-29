@@ -20,6 +20,9 @@ public class ApplicationUser : IdentityUser<Guid>
     /// <summary>Set only for Consultant/SupportAgent users — the single branch (grana) they belong to. Admin is not scoped to a branch.</summary>
     public Guid? DepartmentId { get; set; }
 
+    /// <summary>Required when their branch has sub-branches defined; picks which one this staff member belongs to.</summary>
+    public Guid? SubBranchId { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAtUtc { get; set; }

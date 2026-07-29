@@ -84,6 +84,53 @@ public class LookupsController : ControllerBase
         return Ok(new DepartmentItemFull(entity.Id, entity.Name, entity.Email, entity.IsActive));
     }
 
+    // ---------------- Sub-branches ----------------
+
+    /// <summary>Every authenticated user may list a branch's sub-branches — needed to populate the required sub-branch picker when opening tickets or assigning employees.</summary>
+    [HttpGet("departments/{departmentId:guid}/sub-branches")]
+    public async Task<ActionResult<List<SubBranchItemFull>>> GetSubBranches(Guid departmentId, [FromQuery] bool includeInactive = false)
+    {
+        var isAdmin = User.IsInRole(nameof(UserRole.Admin));
+        var query = _db.SubBranches.Where(s => s.DepartmentId == departmentId);
+        if (!includeInactive || !isAdmin) query = query.Where(s => s.IsActive);
+
+        var items = await query.OrderBy(s => s.Name)
+            .Select(s => new SubBranchItemFull(s.Id, s.Name, s.IsActive, s.DepartmentId)).ToListAsync();
+        return Ok(items);
+    }
+
+    [HttpPost("departments/{departmentId:guid}/sub-branches")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<ActionResult<SubBranchItemFull>> CreateSubBranch(Guid departmentId, CreateSubBranchRequest request)
+    {
+        var departmentExists = await _db.Departments.AnyAsync(d => d.Id == departmentId);
+        if (!departmentExists) return NotFound(new { message = "Branch not found." });
+
+        var nameTaken = await _db.SubBranches.AnyAsync(s => s.DepartmentId == departmentId && s.Name == request.Name);
+        if (nameTaken) return Conflict(new { message = "This branch already has a sub-branch with that name." });
+
+        var entity = new SubBranch { DepartmentId = departmentId, Name = request.Name };
+        _db.SubBranches.Add(entity);
+        await _db.SaveChangesAsync();
+        return Ok(new SubBranchItemFull(entity.Id, entity.Name, entity.IsActive, entity.DepartmentId));
+    }
+
+    [HttpPut("sub-branches/{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<ActionResult<SubBranchItemFull>> UpdateSubBranch(Guid id, UpdateSubBranchRequest request)
+    {
+        var entity = await _db.SubBranches.FindAsync(id);
+        if (entity is null) return NotFound();
+
+        var nameTaken = await _db.SubBranches.AnyAsync(s => s.DepartmentId == entity.DepartmentId && s.Name == request.Name && s.Id != id);
+        if (nameTaken) return Conflict(new { message = "This branch already has a sub-branch with that name." });
+
+        entity.Name = request.Name;
+        entity.IsActive = request.IsActive;
+        await _db.SaveChangesAsync();
+        return Ok(new SubBranchItemFull(entity.Id, entity.Name, entity.IsActive, entity.DepartmentId));
+    }
+
     // ---------------- Help Topics ----------------
 
     [HttpGet("help-topics")]

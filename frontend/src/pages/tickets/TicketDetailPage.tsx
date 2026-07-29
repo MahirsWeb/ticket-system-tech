@@ -78,7 +78,8 @@ export default function TicketDetailPage() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <InfoRow label="Source" value={ticket.source} />
             <InfoRow label="Help topic" value={ticket.helpTopicName} />
-            <InfoRow label="Department" value={ticket.departmentName} />
+            <InfoRow label="Branch" value={ticket.departmentName} />
+            <InfoRow label="Sub-branch" value={ticket.subBranchName} />
             <InfoRow label="SLA plan" value={ticket.slaPlanName} />
             <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />
             <InfoRow label="Opened at" value={ticket.openedAtUtc ? format(new Date(ticket.openedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
