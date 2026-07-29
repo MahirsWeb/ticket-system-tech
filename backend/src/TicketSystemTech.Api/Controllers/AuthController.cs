@@ -173,6 +173,15 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
 
+        // A successful reset always supersedes any pending temporary-password requirement — otherwise a user
+        // whose temp password expired would reset via email and still be blocked by the MustChangePassword check on login.
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            user.TemporaryPasswordExpiresAtUtc = null;
+            await _userManager.UpdateAsync(user);
+        }
+
         return Ok(new { message = "Password reset successfully. You can now log in." });
     }
 
