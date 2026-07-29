@@ -197,3 +197,14 @@ export interface BranchBreakdownEntryDto {
   totalOpen: number;
   totalClosed: number;
 }
+
+export interface PeriodComparisonPointDto {
+  label: string;
+  periodStart: string;
+  count: number;
+}
+
+export interface TopIssueDto {
+  helpTopicName: string;
+  count: number;
+}

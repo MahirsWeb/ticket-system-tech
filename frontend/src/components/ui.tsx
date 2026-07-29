@@ -77,8 +77,12 @@ export function Label({ children }: { children: React.ReactNode }) {
   return <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</label>;
 }
 
-export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={clsx('rounded-lg border border-slate-200 bg-white shadow-sm', className)}>{children}</div>;
+export function Card({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={clsx('rounded-lg border border-slate-200 bg-white shadow-sm', className)} {...props}>
+      {children}
+    </div>
+  );
 }
 
 export function ErrorText({ children }: { children?: React.ReactNode }) {

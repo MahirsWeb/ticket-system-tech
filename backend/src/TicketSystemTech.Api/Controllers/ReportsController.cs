@@ -1,9 +1,11 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TicketSystemTech.Api.Contracts;
 using TicketSystemTech.Application.Common.Interfaces;
+using TicketSystemTech.Application.Reporting;
 using TicketSystemTech.Domain.Entities;
 using TicketSystemTech.Domain.Enums;
 using TicketSystemTech.Infrastructure.Persistence;
@@ -15,13 +17,21 @@ namespace TicketSystemTech.Api.Controllers;
 [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
 public class ReportsController : ControllerBase
 {
+    private const string InsightsSystemInstruction =
+        "You are analyzing helpdesk ticket statistics for management. Based ONLY on the category breakdown " +
+        "given, write a short summary (max 6 sentences) identifying which problem categories caused the most " +
+        "trouble, any patterns worth noting, and 1-2 concrete recommendations to reduce them. Do not invent " +
+        "details that aren't present in the data. Reply in the same language as the question.";
+
     private readonly AppDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IChatCompletionService _chatCompletionService;
 
-    public ReportsController(AppDbContext db, ICurrentUserService currentUser)
+    public ReportsController(AppDbContext db, ICurrentUserService currentUser, IChatCompletionService chatCompletionService)
     {
         _db = db;
         _currentUser = currentUser;
+        _chatCompletionService = chatCompletionService;
     }
 
     private IQueryable<Ticket> Scoped(DateTime from, DateTime to, Guid? companyId, Guid? agentId, Guid? departmentId)
@@ -124,7 +134,99 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Downloads the filtered ticket list as CSV — respects the same branch/company/agent/date scoping as the other report endpoints.</summary>
+    /// <summary>Buckets tickets created in range by week/month/quarter/year, so periods can be compared to spot the busiest/quietest ones.</summary>
+    [HttpGet("period-comparison")]
+    public async Task<ActionResult<List<PeriodComparisonPointDto>>> PeriodComparison(
+        DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, [FromQuery] string groupBy = "month")
+    {
+        var (f, t) = NormalizeRange(from, to);
+        var createdDates = await Scoped(f, t, companyId, agentId, departmentId).Select(x => x.CreatedAt).ToListAsync();
+
+        DateTime BucketStart(DateTime d) => groupBy.ToLowerInvariant() switch
+        {
+            "week" => ISOWeek.ToDateTime(ISOWeek.GetYear(d), ISOWeek.GetWeekOfYear(d), DayOfWeek.Monday),
+            "quarter" => new DateTime(d.Year, ((d.Month - 1) / 3) * 3 + 1, 1),
+            "year" => new DateTime(d.Year, 1, 1),
+            _ => new DateTime(d.Year, d.Month, 1),
+        };
+        string LabelFor(DateTime bucketStart) => groupBy.ToLowerInvariant() switch
+        {
+            "week" => $"W{ISOWeek.GetWeekOfYear(bucketStart):00} {bucketStart:yyyy}",
+            "quarter" => $"Q{((bucketStart.Month - 1) / 3) + 1} {bucketStart:yyyy}",
+            "year" => bucketStart.ToString("yyyy"),
+            _ => bucketStart.ToString("MMM yyyy", CultureInfo.InvariantCulture),
+        };
+
+        var points = createdDates
+            .GroupBy(BucketStart)
+            .Select(g => new PeriodComparisonPointDto(LabelFor(g.Key), g.Key, g.Count()))
+            .OrderBy(x => x.PeriodStart)
+            .ToList();
+
+        return Ok(points);
+    }
+
+    /// <summary>Ranks how many tickets fell under each help topic in the range — the clearest signal of what's causing the most trouble.</summary>
+    [HttpGet("top-issues")]
+    public async Task<ActionResult<List<TopIssueDto>>> TopIssues(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId, [FromQuery] int limit = 10)
+    {
+        var (f, t) = NormalizeRange(from, to);
+        var grouped = await Scoped(f, t, companyId, agentId, departmentId)
+            .Where(x => x.HelpTopicId.HasValue)
+            .GroupBy(x => x.HelpTopicId!.Value)
+            .Select(g => new { HelpTopicId = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .Take(Math.Clamp(limit, 1, 50))
+            .ToListAsync();
+
+        var topicIds = grouped.Select(g => g.HelpTopicId).ToList();
+        var topicNames = await _db.HelpTopics.Where(h => topicIds.Contains(h.Id)).ToDictionaryAsync(h => h.Id, h => h.Name);
+
+        return Ok(grouped.Select(g => new TopIssueDto(topicNames.GetValueOrDefault(g.HelpTopicId, "Unknown"), g.Count)).ToList());
+    }
+
+    /// <summary>
+    /// AI-generated qualitative summary of what went wrong most in a period (min. 1 month), grounded strictly
+    /// in the help-topic breakdown for that period — no general knowledge, no invented details.
+    /// </summary>
+    [HttpPost("ai-insights")]
+    public async Task<ActionResult<AiInsightsResponseDto>> AiInsights(AiInsightsRequest request)
+    {
+        if ((request.To - request.From).TotalDays < 28)
+            return BadRequest(new { message = "Select a period of at least one month for AI analysis." });
+
+        var raw = await Scoped(request.From, request.To, request.CompanyId, request.AgentId, request.DepartmentId)
+            .Select(x => new { x.Title, x.HelpTopicId, x.Status })
+            .ToListAsync();
+
+        if (raw.Count == 0)
+            return Ok(new AiInsightsResponseDto("No tickets found in this period to analyze."));
+
+        var topicNames = await _db.HelpTopics.ToDictionaryAsync(h => h.Id, h => h.Name);
+
+        var byTopic = raw.Where(x => x.HelpTopicId.HasValue)
+            .GroupBy(x => x.HelpTopicId!.Value)
+            .Select(g => new { Name = topicNames.GetValueOrDefault(g.Key, "Unknown"), Count = g.Count(), Samples = g.Take(5).Select(x => x.Title).ToList() })
+            .OrderByDescending(x => x.Count)
+            .Take(10)
+            .ToList();
+
+        var context = new StringBuilder();
+        context.AppendLine($"Total tickets in period: {raw.Count} (period: {request.From:yyyy-MM-dd} to {request.To:yyyy-MM-dd})");
+        foreach (var topic in byTopic)
+            context.AppendLine($"- {topic.Name}: {topic.Count} tickets. Example titles: {string.Join("; ", topic.Samples)}");
+
+        var answer = await _chatCompletionService.AskAsync(
+            InsightsSystemInstruction, context.ToString(), "Which problems occurred most in this period and what should we do about them?");
+
+        return Ok(new AiInsightsResponseDto(answer ?? "AI analysis isn't configured yet (missing Google AI key)."));
+    }
+
+    /// <summary>
+    /// Downloads the filtered ticket list as an Excel workbook — a "Tickets" sheet with the raw data and a
+    /// "Summary" sheet with key stats plus a monthly bar chart. Respects the same branch/company/agent/date
+    /// scoping as the other report endpoints.
+    /// </summary>
     [HttpGet("export")]
     public async Task<IActionResult> Export(DateTime? from, DateTime? to, Guid? companyId, Guid? agentId, Guid? departmentId)
     {
@@ -140,39 +242,24 @@ public class ReportsController : ControllerBase
         var companies = await _db.Companies.ToDictionaryAsync(c => c.Id, c => c.Name);
         var departments = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name);
 
-        var csv = new StringBuilder();
-        csv.AppendLine("Ticket Number,Title,Status,Branch,Company,Client,Assigned To,Created At (UTC),Opened At (UTC),Closed At (UTC),Resolution Hours,Resolved By");
-        foreach (var x in tickets)
-        {
-            double? resolutionHours = x.OpenedAtUtc.HasValue && x.ClosedAtUtc.HasValue
-                ? Math.Round((x.ClosedAtUtc.Value - x.OpenedAtUtc.Value).TotalHours, 1)
-                : null;
+        var rows = tickets.Select(x => new TicketExportRow(
+            x.TicketNumber,
+            x.Title,
+            x.Status.ToString(),
+            x.DepartmentId.HasValue ? departments.GetValueOrDefault(x.DepartmentId.Value, "") : "",
+            companies.GetValueOrDefault(x.CompanyId, ""),
+            names.GetValueOrDefault(x.ClientId, ""),
+            x.AssignedToUserId.HasValue ? names.GetValueOrDefault(x.AssignedToUserId.Value) : null,
+            x.CreatedAt,
+            x.OpenedAtUtc,
+            x.ClosedAtUtc,
+            x.OpenedAtUtc.HasValue && x.ClosedAtUtc.HasValue ? Math.Round((x.ClosedAtUtc.Value - x.OpenedAtUtc.Value).TotalHours, 1) : (double?)null,
+            x.ClosedByUserId.HasValue ? names.GetValueOrDefault(x.ClosedByUserId.Value) : null
+        )).ToList();
 
-            csv.AppendLine(string.Join(",", new[]
-            {
-                CsvField(x.TicketNumber),
-                CsvField(x.Title),
-                CsvField(x.Status.ToString()),
-                CsvField(x.DepartmentId.HasValue ? departments.GetValueOrDefault(x.DepartmentId.Value, "") : ""),
-                CsvField(companies.GetValueOrDefault(x.CompanyId, "")),
-                CsvField(names.GetValueOrDefault(x.ClientId, "")),
-                CsvField(x.AssignedToUserId.HasValue ? names.GetValueOrDefault(x.AssignedToUserId.Value, "") : ""),
-                CsvField(x.CreatedAt.ToString("u")),
-                CsvField(x.OpenedAtUtc?.ToString("u") ?? ""),
-                CsvField(x.ClosedAtUtc?.ToString("u") ?? ""),
-                CsvField(resolutionHours?.ToString() ?? ""),
-                CsvField(x.ClosedByUserId.HasValue ? names.GetValueOrDefault(x.ClosedByUserId.Value, "") : "")
-            }));
-        }
-
-        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
-        return File(bytes, "text/csv", $"tickets-export-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv");
+        var bytes = TicketExcelExporter.Build(rows, f, t);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"tickets-export-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx");
     }
-
-    private static string CsvField(string value) =>
-        value.Contains(',') || value.Contains('"') || value.Contains('\n')
-            ? $"\"{value.Replace("\"", "\"\"")}\""
-            : value;
 
     private static (DateTime From, DateTime To) NormalizeRange(DateTime? from, DateTime? to)
     {
