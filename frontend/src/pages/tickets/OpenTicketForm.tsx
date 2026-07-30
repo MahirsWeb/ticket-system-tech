@@ -3,7 +3,7 @@ import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
 import { ticketsApi } from '../../api/tickets';
 import type { DepartmentItemFull, LookupItem, SlaPlanItem, SubBranchItemFull, TicketDetailDto, TicketPriority, TicketSource } from '../../types';
-import { Button, Card, ErrorText, Label, Select } from '../../components/ui';
+import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 
 const SOURCES: TicketSource[] = ['Phone', 'Email', 'TicketSystem', 'Other'];
@@ -28,6 +28,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
+  const [category, setCategory] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -89,6 +90,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         priority,
         dueDateUtc: new Date(dueDate).toISOString(),
         assignedToUserId,
+        category: category.trim() || undefined,
       });
       onOpened(updated);
     } catch (err: any) {
@@ -191,6 +193,10 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
               </option>
             ))}
           </Select>
+        </div>
+        <div>
+          <Label>Category (internal, staff only)</Label>
+          <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Hardware, Billing, Access request…" />
         </div>
         <div className="col-span-2">
           <ErrorText>{error}</ErrorText>

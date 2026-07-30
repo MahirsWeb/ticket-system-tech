@@ -43,6 +43,7 @@ export default function NewTicketOnBehalfPage() {
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
+  const [category, setCategory] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -143,6 +144,7 @@ export default function NewTicketOnBehalfPage() {
         priority,
         dueDateUtc: new Date(dueDate).toISOString(),
         assignedToUserId,
+        category: category.trim() || undefined,
       });
       if (fromEmailMessageId) {
         await emailIntegrationApi.completeTicket(fromEmailMessageId, ticket.id);
@@ -296,6 +298,10 @@ export default function NewTicketOnBehalfPage() {
                     </option>
                   ))}
                 </Select>
+              </div>
+              <div>
+                <Label>Category (internal, staff only)</Label>
+                <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Hardware, Billing, Access request…" />
               </div>
             </div>
 

@@ -41,11 +41,9 @@ export const lookupsApi = {
   slaPlans: () => apiClient.get<SlaPlanItem[]>('/api/sla-plans').then((r) => r.data),
   slaPlansAdmin: () =>
     apiClient.get<SlaPlanItemFull[]>('/api/sla-plans', { params: { includeInactive: true } }).then((r) => r.data),
-  createSlaPlan: (name: string, responseTimeHours: number, resolutionTimeHours: number) =>
-    apiClient.post<SlaPlanItemFull>('/api/sla-plans', { name, responseTimeHours, resolutionTimeHours }).then((r) => r.data),
-  updateSlaPlan: (id: string, name: string, responseTimeHours: number, resolutionTimeHours: number, isActive: boolean) =>
-    apiClient
-      .put<SlaPlanItemFull>(`/api/sla-plans/${id}`, { name, responseTimeHours, resolutionTimeHours, isActive })
-      .then((r) => r.data),
+  createSlaPlan: (name: string, resolutionTimeHours: number) =>
+    apiClient.post<SlaPlanItemFull>('/api/sla-plans', { name, resolutionTimeHours }).then((r) => r.data),
+  updateSlaPlan: (id: string, name: string, resolutionTimeHours: number, isActive: boolean) =>
+    apiClient.put<SlaPlanItemFull>(`/api/sla-plans/${id}`, { name, resolutionTimeHours, isActive }).then((r) => r.data),
   deleteSlaPlan: (id: string) => apiClient.delete(`/api/sla-plans/${id}`).then((r) => r.data),
 };

@@ -74,6 +74,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.Property(t => t.TicketNumber).HasMaxLength(20).IsRequired();
             e.HasIndex(t => t.TicketNumber).IsUnique();
             e.Property(t => t.Title).HasMaxLength(300).IsRequired();
+            e.Property(t => t.Category).HasMaxLength(150);
             e.HasIndex(t => t.Status);
             e.HasIndex(t => t.CompanyId);
             e.HasIndex(t => t.AssignedToUserId);

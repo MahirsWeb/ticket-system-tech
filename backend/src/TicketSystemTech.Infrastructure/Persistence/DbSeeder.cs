@@ -18,9 +18,9 @@ public static class DbSeeder
         if (!await db.SlaPlans.AnyAsync())
         {
             db.SlaPlans.AddRange(
-                new SlaPlan { Name = "Standard", ResponseTimeHours = 8, ResolutionTimeHours = 72 },
-                new SlaPlan { Name = "Priority", ResponseTimeHours = 4, ResolutionTimeHours = 24 },
-                new SlaPlan { Name = "Critical", ResponseTimeHours = 1, ResolutionTimeHours = 8 }
+                new SlaPlan { Name = "Standard", ResolutionTimeHours = 72 },
+                new SlaPlan { Name = "Priority", ResolutionTimeHours = 24 },
+                new SlaPlan { Name = "Critical", ResolutionTimeHours = 8 }
             );
         }
 

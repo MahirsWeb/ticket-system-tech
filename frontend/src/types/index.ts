@@ -36,7 +36,6 @@ export interface LookupItem {
 }
 
 export interface SlaPlanItem extends LookupItem {
-  responseTimeHours: number;
   resolutionTimeHours: number;
 }
 
@@ -71,7 +70,6 @@ export interface SubBranchItemFull {
 export interface SlaPlanItemFull {
   id: string;
   name: string;
-  responseTimeHours: number;
   resolutionTimeHours: number;
   isActive: boolean;
 }
@@ -175,6 +173,7 @@ export interface TicketDetailDto {
   slaPlanName: string | null;
   priority: TicketPriority | null;
   dueDateUtc: string | null;
+  category: string | null;
   assignedToUserId: string | null;
   assignedToName: string | null;
   assignees: TicketAssigneeDto[];

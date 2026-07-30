@@ -19,7 +19,7 @@ public record UpdateCompanyRequest(
 
 public record CompanyItemFull(Guid Id, string Name, string? Address, string? ContactInfo, bool IsActive);
 
-public record SlaPlanItem(Guid Id, string Name, int ResponseTimeHours, int ResolutionTimeHours);
+public record SlaPlanItem(Guid Id, string Name, int ResolutionTimeHours);
 
 public record NameOnlyRequest(
     [Required] string Name
@@ -56,16 +56,14 @@ public record UpdateSubBranchRequest(
 
 public record CreateSlaPlanRequest(
     [Required] string Name,
-    [Range(1, 24 * 30)] int ResponseTimeHours,
     [Range(1, 24 * 30)] int ResolutionTimeHours
 );
 
 public record UpdateSlaPlanRequest(
     [Required] string Name,
-    [Range(1, 24 * 30)] int ResponseTimeHours,
     [Range(1, 24 * 30)] int ResolutionTimeHours,
     bool IsActive
 );
 
 public record LookupItemFull(Guid Id, string Name, bool IsActive);
-public record SlaPlanItemFull(Guid Id, string Name, int ResponseTimeHours, int ResolutionTimeHours, bool IsActive);
+public record SlaPlanItemFull(Guid Id, string Name, int ResolutionTimeHours, bool IsActive);

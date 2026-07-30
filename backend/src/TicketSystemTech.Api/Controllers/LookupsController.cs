@@ -244,11 +244,11 @@ public class LookupsController : ControllerBase
         if (isAdmin)
         {
             var full = await query.OrderBy(s => s.ResolutionTimeHours)
-                .Select(s => new SlaPlanItemFull(s.Id, s.Name, s.ResponseTimeHours, s.ResolutionTimeHours, s.IsActive)).ToListAsync();
+                .Select(s => new SlaPlanItemFull(s.Id, s.Name, s.ResolutionTimeHours, s.IsActive)).ToListAsync();
             return Ok(full);
         }
         var items = await query.OrderBy(s => s.ResolutionTimeHours)
-            .Select(s => new SlaPlanItem(s.Id, s.Name, s.ResponseTimeHours, s.ResolutionTimeHours)).ToListAsync();
+            .Select(s => new SlaPlanItem(s.Id, s.Name, s.ResolutionTimeHours)).ToListAsync();
         return Ok(items);
     }
 
@@ -256,10 +256,10 @@ public class LookupsController : ControllerBase
     [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<ActionResult<SlaPlanItemFull>> CreateSlaPlan(CreateSlaPlanRequest request)
     {
-        var entity = new SlaPlan { Name = request.Name, ResponseTimeHours = request.ResponseTimeHours, ResolutionTimeHours = request.ResolutionTimeHours };
+        var entity = new SlaPlan { Name = request.Name, ResolutionTimeHours = request.ResolutionTimeHours };
         _db.SlaPlans.Add(entity);
         await _db.SaveChangesAsync();
-        return Ok(new SlaPlanItemFull(entity.Id, entity.Name, entity.ResponseTimeHours, entity.ResolutionTimeHours, entity.IsActive));
+        return Ok(new SlaPlanItemFull(entity.Id, entity.Name, entity.ResolutionTimeHours, entity.IsActive));
     }
 
     [HttpPut("sla-plans/{id:guid}")]
@@ -269,11 +269,10 @@ public class LookupsController : ControllerBase
         var entity = await _db.SlaPlans.FindAsync(id);
         if (entity is null) return NotFound();
         entity.Name = request.Name;
-        entity.ResponseTimeHours = request.ResponseTimeHours;
         entity.ResolutionTimeHours = request.ResolutionTimeHours;
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync();
-        return Ok(new SlaPlanItemFull(entity.Id, entity.Name, entity.ResponseTimeHours, entity.ResolutionTimeHours, entity.IsActive));
+        return Ok(new SlaPlanItemFull(entity.Id, entity.Name, entity.ResolutionTimeHours, entity.IsActive));
     }
 
     /// <summary>Tickets referencing this SLA plan have it cleared to NULL by the database, not deleted.</summary>

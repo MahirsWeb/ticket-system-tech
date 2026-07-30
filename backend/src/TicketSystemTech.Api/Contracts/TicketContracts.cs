@@ -20,7 +20,8 @@ public record CreateTicketOnBehalfRequest(
     [Required] Guid SlaPlanId,
     [Required] TicketPriority Priority,
     [Required] DateTime DueDateUtc,
-    [Required] Guid AssignedToUserId
+    [Required] Guid AssignedToUserId,
+    string? Category // Internal-only classification, staff/Admin — never shown to the client.
 );
 
 public record OpenTicketRequest(
@@ -31,7 +32,8 @@ public record OpenTicketRequest(
     [Required] Guid SlaPlanId,
     [Required] TicketPriority Priority,
     [Required] DateTime DueDateUtc,
-    [Required] Guid AssignedToUserId
+    [Required] Guid AssignedToUserId,
+    string? Category // Internal-only classification, staff/Admin — never shown to the client.
 );
 
 public record CloseTicketRequest(
@@ -116,6 +118,7 @@ public record TicketDetailDto(
     string? SlaPlanName,
     string? Priority,
     DateTime? DueDateUtc,
+    string? Category, // Null when the requester is a Client — internal-only field.
     Guid? AssignedToUserId,
     string? AssignedToName,
     List<TicketAssigneeDto> Assignees,
