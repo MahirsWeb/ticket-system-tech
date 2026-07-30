@@ -151,6 +151,7 @@ public class TicketsController : ControllerBase
     public async Task<ActionResult<PagedResult<TicketListItem>>> List(
         [FromQuery] string? status,
         [FromQuery] Guid? companyId,
+        [FromQuery] Guid? clientId,
         [FromQuery] Guid? assignedToUserId,
         [FromQuery] Guid? departmentId,
         [FromQuery] Guid? subBranchId,
@@ -176,6 +177,7 @@ public class TicketsController : ControllerBase
         var statuses = ParseStatuses(status);
         if (statuses.Count > 0) query = query.Where(t => statuses.Contains(t.Status));
         if (companyId.HasValue) query = query.Where(t => t.CompanyId == companyId.Value);
+        if (clientId.HasValue) query = query.Where(t => t.ClientId == clientId.Value);
         if (assignedToUserId.HasValue)
             query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value || t.Assignees.Any(a => a.UserId == assignedToUserId.Value));
         if (departmentId.HasValue) query = query.Where(t => t.DepartmentId == departmentId.Value);

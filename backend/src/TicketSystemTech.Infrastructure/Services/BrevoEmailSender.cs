@@ -1,8 +1,10 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TicketSystemTech.Application.Common.Interfaces;
+using TicketSystemTech.Infrastructure.Persistence;
 
 namespace TicketSystemTech.Infrastructure.Services;
 
@@ -12,16 +14,28 @@ public class BrevoEmailSender : IEmailSender
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<BrevoEmailSender> _logger;
+    private readonly AppDbContext _db;
 
-    public BrevoEmailSender(HttpClient httpClient, IConfiguration configuration, ILogger<BrevoEmailSender> logger)
+    public BrevoEmailSender(HttpClient httpClient, IConfiguration configuration, ILogger<BrevoEmailSender> logger, AppDbContext db)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
+        _db = db;
     }
 
     public async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
     {
+        // Centralized guard: an inactive account's mailbox no longer receives anything from the app,
+        // regardless of which flow triggered the send (ticket update, task assignment, invite, ...).
+        var normalizedEmail = toEmail.ToUpperInvariant();
+        var recipientIsInactive = await _db.Users.AnyAsync(u => u.NormalizedEmail == normalizedEmail && !u.IsActive, ct);
+        if (recipientIsInactive)
+        {
+            _logger.LogInformation("Skipped email to {Email} — recipient account is inactive.", toEmail);
+            return;
+        }
+
         var apiKey = _configuration["Brevo:ApiKey"];
         var senderEmail = _configuration["Brevo:SenderEmail"] ?? "no-reply@ticketsystemtech.app";
         var senderName = _configuration["Brevo:SenderName"] ?? "Ticket System Tech";

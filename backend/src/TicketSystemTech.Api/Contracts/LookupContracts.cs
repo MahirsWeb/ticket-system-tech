@@ -10,6 +10,15 @@ public record CreateCompanyRequest(
     string? ContactInfo
 );
 
+public record UpdateCompanyRequest(
+    [Required] string Name,
+    string? Address,
+    string? ContactInfo,
+    bool IsActive
+);
+
+public record CompanyItemFull(Guid Id, string Name, string? Address, string? ContactInfo, bool IsActive);
+
 public record SlaPlanItem(Guid Id, string Name, int ResponseTimeHours, int ResolutionTimeHours);
 
 public record NameOnlyRequest(

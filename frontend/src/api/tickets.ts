@@ -13,6 +13,7 @@ import type {
 export interface TicketListParams {
   status?: string;
   companyId?: string;
+  clientId?: string;
   assignedToUserId?: string;
   departmentId?: string;
   subBranchId?: string;

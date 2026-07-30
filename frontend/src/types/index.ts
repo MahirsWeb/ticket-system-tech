@@ -53,6 +53,14 @@ export interface DepartmentItemFull {
   isActive: boolean;
 }
 
+export interface CompanyItemFull {
+  id: string;
+  name: string;
+  address: string | null;
+  contactInfo: string | null;
+  isActive: boolean;
+}
+
 export interface SubBranchItemFull {
   id: string;
   name: string;

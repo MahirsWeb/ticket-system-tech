@@ -29,6 +29,9 @@ export const usersApi = {
   setBranch: (userId: string, departmentId: string | null, subBranchId: string | null) =>
     apiClient.patch(`/api/users/${userId}/department`, { departmentId, subBranchId }).then((r) => r.data),
 
+  setActive: (userId: string, isActive: boolean) =>
+    apiClient.patch(`/api/users/${userId}/active`, { isActive }).then((r) => r.data),
+
   setMyPhone: (phoneNumber: string) => apiClient.patch('/api/users/me/phone', { phoneNumber }).then((r) => r.data),
 
   skipPhonePrompt: () => apiClient.post('/api/users/me/skip-phone-prompt').then((r) => r.data),

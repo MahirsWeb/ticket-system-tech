@@ -154,6 +154,24 @@ public class UsersController : ControllerBase
         return Ok();
     }
 
+    /// <summary>
+    /// Admin-only: marks an account active/inactive. Inactive means "no longer collaborating" —
+    /// the account can't log in (enforced in AuthController.Login) and stops receiving any app emails
+    /// (enforced centrally in BrevoEmailSender). Can be reversed at any time.
+    /// </summary>
+    [HttpPatch("{id:guid}/active")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<IActionResult> SetActive(Guid id, SetUserActiveRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user is null) return NotFound();
+        if (user.Id == _currentUser.UserId) return BadRequest(new { message = "You cannot deactivate your own account." });
+
+        user.IsActive = request.IsActive;
+        await _userManager.UpdateAsync(user);
+        return Ok();
+    }
+
     [HttpGet]
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
     public async Task<ActionResult<List<UserListItem>>> List([FromQuery] UserRole? role, [FromQuery] Guid? companyId, [FromQuery] Guid? departmentId, [FromQuery] Guid? subBranchId)

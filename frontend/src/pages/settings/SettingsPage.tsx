@@ -2,7 +2,24 @@ import { useEffect, useState } from 'react';
 import { lookupsApi } from '../../api/lookups';
 import { settingsApi } from '../../api/settings';
 import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull, SubBranchItemFull } from '../../types';
-import { Button, Card, ErrorText, Input, Label, SuccessText } from '../../components/ui';
+import { Button, Card, ErrorText, Input, Label, StatusPill, SuccessText } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+
+function SectionHeader({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4 flex items-start gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-lg">{icon}</span>
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Row({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3.5 py-2.5">{children}</div>;
+}
 
 function SubBranchesInline({ departmentId }: { departmentId: string }) {
   const [items, setItems] = useState<SubBranchItemFull[]>([]);
@@ -40,7 +57,7 @@ function SubBranchesInline({ departmentId }: { departmentId: string }) {
   if (loading) return <p className="py-2 text-xs text-slate-400">Loading sub-branches…</p>;
 
   return (
-    <div className="mt-2 rounded-md bg-slate-50 p-3">
+    <div className="mt-2 rounded-lg border border-slate-100 bg-white p-3">
       <p className="mb-2 text-xs text-slate-500">
         Optional finer units within this branch — e.g. "Consulting" and "Technical Support" both under "Software",
         sharing its email but tracked separately for statistics and ticket assignment. If any exist, staff and
@@ -53,17 +70,20 @@ function SubBranchesInline({ departmentId }: { departmentId: string }) {
         </Button>
       </form>
       <ErrorText>{error}</ErrorText>
-      <ul className="divide-y divide-slate-200">
+      <div className="space-y-1.5">
         {items.map((item) => (
-          <li key={item.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
-            <span className={item.isActive ? 'text-slate-700' : 'text-slate-400 line-through'}>{item.name}</span>
-            <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
-              {item.isActive ? 'Deactivate' : 'Reactivate'}
-            </button>
-          </li>
+          <Row key={item.id}>
+            <span className="text-sm text-slate-700">{item.name}</span>
+            <div className="flex items-center gap-2">
+              <StatusPill active={item.isActive} />
+              <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
+                {item.isActive ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
+          </Row>
         ))}
-        {items.length === 0 && <li className="py-2 text-xs text-slate-400">No sub-branches — this branch is used as a single unit.</li>}
-      </ul>
+        {items.length === 0 && <p className="py-2 text-xs text-slate-400">No sub-branches — this branch is used as a single unit.</p>}
+      </div>
     </div>
   );
 }
@@ -104,10 +124,7 @@ function OverdueNotificationsSection() {
 
   return (
     <Card className="p-5">
-      <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Overdue ticket notifications</h2>
-      <p className="mb-4 text-xs text-slate-400">
-        Emails every assignee once a ticket first becomes overdue. Each ticket is only notified once.
-      </p>
+      <SectionHeader icon="⏰" title="Overdue ticket notifications" subtitle="Emails every assignee once a ticket first becomes overdue. Each ticket is only notified once." />
       <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" checked={notifyOnSlaBreach} onChange={(e) => setNotifyOnSlaBreach(e.target.checked)} />
         Notify when a ticket passes its SLA due date
@@ -143,6 +160,8 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
   const [editingName, setEditingName] = useState('');
   const [editingEmail, setEditingEmail] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<DepartmentItemFull | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -174,13 +193,25 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
     }
   }
 
+  async function handleConfirmDelete() {
+    if (!confirmDelete) return;
+    setDeleteError(null);
+    try {
+      await lookupsApi.deleteDepartment(confirmDelete.id);
+      setConfirmDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      setDeleteError(err?.response?.data?.message ?? 'Could not delete this branch.');
+    }
+  }
+
   return (
     <Card className="p-5">
-      <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Branches</h2>
-      <p className="mb-4 text-xs text-slate-400">
-        Every branch needs a dedicated email address. Employees are assigned to exactly one branch; tickets and
-        emails are isolated to that branch.
-      </p>
+      <SectionHeader
+        icon="🏢"
+        title="Branches"
+        subtitle="Every branch needs a dedicated email address. Employees are assigned to exactly one branch; tickets and emails are isolated to that branch."
+      />
       <form onSubmit={handleCreate} className="mb-4 flex flex-wrap gap-2">
         <Input placeholder="Branch name (e.g. Servis)" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs" />
         <Input
@@ -193,21 +224,21 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
         <Button type="submit">Add</Button>
       </form>
       <ErrorText>{error}</ErrorText>
-      <ul className="divide-y divide-slate-100">
+      <div className="space-y-1.5">
         {items.map((item) => (
-          <li key={item.id} className="py-2">
-            <div className="flex items-center justify-between gap-3">
+          <div key={item.id}>
+            <Row>
               {editingId === item.id ? (
                 <div className="flex flex-1 gap-2">
                   <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
                   <Input type="email" value={editingEmail} onChange={(e) => setEditingEmail(e.target.value)} className="max-w-xs" />
                 </div>
               ) : (
-                <span className={item.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}>
+                <span className="text-sm text-slate-800">
                   {item.name} <span className="text-xs text-slate-400">— {item.email}</span>
                 </span>
               )}
-              <div className="flex shrink-0 gap-2 text-xs">
+              <div className="flex shrink-0 items-center gap-3 text-xs">
                 {editingId === item.id ? (
                   <>
                     <button className="font-medium text-blue-700 hover:underline" onClick={() => handleSaveEdit(item)}>
@@ -219,6 +250,7 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
                   </>
                 ) : (
                   <>
+                    <StatusPill active={item.isActive} />
                     <button
                       className="text-slate-500 hover:underline"
                       onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
@@ -238,36 +270,61 @@ function DepartmentsSection({ items, onRefresh }: { items: DepartmentItemFull[];
                     <button className="text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
                       {item.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
+                    <button className="font-medium text-red-600 hover:underline" onClick={() => setConfirmDelete(item)}>
+                      Delete
+                    </button>
                   </>
                 )}
               </div>
-            </div>
+            </Row>
             {expandedId === item.id && <SubBranchesInline departmentId={item.id} />}
-          </li>
+          </div>
         ))}
-        {items.length === 0 && <li className="py-4 text-center text-sm text-slate-400">No branches yet.</li>}
-      </ul>
+        {items.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No branches yet.</p>}
+      </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete this branch?"
+          message={`"${confirmDelete.name}" will be permanently deleted. Any tickets or staff currently assigned to it will simply become unassigned from a branch — nothing else is deleted.${deleteError ? `\n\n${deleteError}` : ''}`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setConfirmDelete(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
     </Card>
   );
 }
 
 function SimpleLookupSection({
+  icon,
   title,
   items,
   onRefresh,
   onCreate,
   onUpdate,
+  onDelete,
+  deleteWarning,
 }: {
+  icon: string;
   title: string;
   items: LookupItemFull[];
   onRefresh: () => void;
   onCreate: (name: string) => Promise<unknown>;
   onUpdate: (id: string, name: string, isActive: boolean) => Promise<unknown>;
+  onDelete: (id: string) => Promise<unknown>;
+  deleteWarning: string;
 }) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<LookupItemFull | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -294,23 +351,35 @@ function SimpleLookupSection({
     onRefresh();
   }
 
+  async function handleConfirmDelete() {
+    if (!confirmDelete) return;
+    setDeleteError(null);
+    try {
+      await onDelete(confirmDelete.id);
+      setConfirmDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      setDeleteError(err?.response?.data?.message ?? 'Could not delete this item.');
+    }
+  }
+
   return (
     <Card className="p-5">
-      <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">{title}</h2>
+      <SectionHeader icon={icon} title={title} />
       <form onSubmit={handleCreate} className="mb-4 flex gap-2">
         <Input placeholder={`Add a new ${title.toLowerCase().replace(/s$/, '')}…`} value={name} onChange={(e) => setName(e.target.value)} />
         <Button type="submit">Add</Button>
       </form>
       <ErrorText>{error}</ErrorText>
-      <ul className="divide-y divide-slate-100">
+      <div className="space-y-1.5">
         {items.map((item) => (
-          <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+          <Row key={item.id}>
             {editingId === item.id ? (
               <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
             ) : (
-              <span className={item.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}>{item.name}</span>
+              <span className="text-sm text-slate-800">{item.name}</span>
             )}
-            <div className="flex gap-2 text-xs">
+            <div className="flex items-center gap-3 text-xs">
               {editingId === item.id ? (
                 <>
                   <button className="font-medium text-blue-700 hover:underline" onClick={() => handleSaveEdit(item)}>
@@ -322,6 +391,7 @@ function SimpleLookupSection({
                 </>
               ) : (
                 <>
+                  <StatusPill active={item.isActive} />
                   <button
                     className="font-medium text-blue-700 hover:underline"
                     onClick={() => {
@@ -334,13 +404,30 @@ function SimpleLookupSection({
                   <button className="text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
                     {item.isActive ? 'Deactivate' : 'Reactivate'}
                   </button>
+                  <button className="font-medium text-red-600 hover:underline" onClick={() => setConfirmDelete(item)}>
+                    Delete
+                  </button>
                 </>
               )}
             </div>
-          </li>
+          </Row>
         ))}
-        {items.length === 0 && <li className="py-4 text-center text-sm text-slate-400">No items yet.</li>}
-      </ul>
+        {items.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No items yet.</p>}
+      </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete "${confirmDelete.name}"?`}
+          message={`${deleteWarning}${deleteError ? `\n\n${deleteError}` : ''}`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setConfirmDelete(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
     </Card>
   );
 }
@@ -350,6 +437,8 @@ function SlaPlansSection({ items, onRefresh }: { items: SlaPlanItemFull[]; onRef
   const [responseHours, setResponseHours] = useState(8);
   const [resolutionHours, setResolutionHours] = useState(72);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<SlaPlanItemFull | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -369,9 +458,21 @@ function SlaPlansSection({ items, onRefresh }: { items: SlaPlanItemFull[]; onRef
     onRefresh();
   }
 
+  async function handleConfirmDelete() {
+    if (!confirmDelete) return;
+    setDeleteError(null);
+    try {
+      await lookupsApi.deleteSlaPlan(confirmDelete.id);
+      setConfirmDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      setDeleteError(err?.response?.data?.message ?? 'Could not delete this SLA plan.');
+    }
+  }
+
   return (
     <Card className="p-5">
-      <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">SLA Plans</h2>
+      <SectionHeader icon="⏱️" title="SLA Plans" />
       <form onSubmit={handleCreate} className="mb-4 grid grid-cols-4 gap-2">
         <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <div>
@@ -387,19 +488,39 @@ function SlaPlansSection({ items, onRefresh }: { items: SlaPlanItemFull[]; onRef
         </Button>
       </form>
       <ErrorText>{error}</ErrorText>
-      <ul className="divide-y divide-slate-100">
+      <div className="space-y-1.5">
         {items.map((item) => (
-          <li key={item.id} className="flex items-center justify-between py-2">
-            <span className={item.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}>
+          <Row key={item.id}>
+            <span className="text-sm text-slate-800">
               {item.name} — {item.responseTimeHours}h response / {item.resolutionTimeHours}h resolution
             </span>
-            <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
-              {item.isActive ? 'Deactivate' : 'Reactivate'}
-            </button>
-          </li>
+            <div className="flex items-center gap-3 text-xs">
+              <StatusPill active={item.isActive} />
+              <button className="text-slate-500 hover:underline" onClick={() => handleToggleActive(item)}>
+                {item.isActive ? 'Deactivate' : 'Reactivate'}
+              </button>
+              <button className="font-medium text-red-600 hover:underline" onClick={() => setConfirmDelete(item)}>
+                Delete
+              </button>
+            </div>
+          </Row>
         ))}
-        {items.length === 0 && <li className="py-4 text-center text-sm text-slate-400">No SLA plans yet.</li>}
-      </ul>
+        {items.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No SLA plans yet.</p>}
+      </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete "${confirmDelete.name}"?`}
+          message={`This SLA plan will be permanently deleted. Any tickets currently using it simply lose their SLA plan reference — nothing else is affected.${deleteError ? `\n\n${deleteError}` : ''}`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setConfirmDelete(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
     </Card>
   );
 }
@@ -427,18 +548,23 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">Settings</h1>
-      <p className="text-sm text-slate-500">
-        Manage the dropdown values agents choose from when opening a ticket. Only Admins can change these.
-      </p>
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Manage the dropdown values agents choose from when opening a ticket. Only Admins can change these.
+        </p>
+      </div>
 
       <DepartmentsSection items={departments} onRefresh={refreshDepartments} />
       <SimpleLookupSection
+        icon="🏷️"
         title="Help Topics"
         items={helpTopics}
         onRefresh={refreshHelpTopics}
         onCreate={lookupsApi.createHelpTopic}
         onUpdate={lookupsApi.updateHelpTopic}
+        onDelete={lookupsApi.deleteHelpTopic}
+        deleteWarning="This help topic will be permanently deleted. Any tickets currently using it simply lose their help topic reference — nothing else is affected."
       />
       <SlaPlansSection items={slaPlans} onRefresh={refreshSlaPlans} />
       <OverdueNotificationsSection />

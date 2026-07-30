@@ -8,6 +8,10 @@ public record SetUserBranchRequest(
     Guid? SubBranchId
 );
 
+public record SetUserActiveRequest(
+    bool IsActive
+);
+
 public record CreateEmployeeRequest(
     [Required] string FirstName,
     [Required] string LastName,

@@ -23,11 +23,24 @@ public class LookupsController : ControllerBase
     // ---------------- Companies ----------------
 
     [HttpGet("companies")]
-    public async Task<ActionResult<List<LookupItem>>> GetCompanies()
+    public async Task<ActionResult<List<CompanyItemFull>>> GetCompanies([FromQuery] bool includeInactive = false)
     {
-        var items = await _db.Companies.Where(c => c.IsActive).OrderBy(c => c.Name)
-            .Select(c => new LookupItem(c.Id, c.Name)).ToListAsync();
+        var isAdmin = User.IsInRole(nameof(UserRole.Admin));
+        var query = _db.Companies.AsQueryable();
+        if (!includeInactive || !isAdmin) query = query.Where(c => c.IsActive);
+
+        var items = await query.OrderBy(c => c.Name)
+            .Select(c => new CompanyItemFull(c.Id, c.Name, c.Address, c.ContactInfo, c.IsActive)).ToListAsync();
         return Ok(items);
+    }
+
+    [HttpGet("companies/{id:guid}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<CompanyItemFull>> GetCompany(Guid id)
+    {
+        var c = await _db.Companies.FindAsync(id);
+        if (c is null) return NotFound();
+        return Ok(new CompanyItemFull(c.Id, c.Name, c.Address, c.ContactInfo, c.IsActive));
     }
 
     [HttpPost("companies")]
@@ -38,6 +51,21 @@ public class LookupsController : ControllerBase
         _db.Companies.Add(company);
         await _db.SaveChangesAsync();
         return Ok(new LookupItem(company.Id, company.Name));
+    }
+
+    [HttpPut("companies/{id:guid}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<CompanyItemFull>> UpdateCompany(Guid id, UpdateCompanyRequest request)
+    {
+        var c = await _db.Companies.FindAsync(id);
+        if (c is null) return NotFound();
+
+        c.Name = request.Name;
+        c.Address = request.Address;
+        c.ContactInfo = request.ContactInfo;
+        c.IsActive = request.IsActive;
+        await _db.SaveChangesAsync();
+        return Ok(new CompanyItemFull(c.Id, c.Name, c.Address, c.ContactInfo, c.IsActive));
     }
 
     // ---------------- Departments ----------------
@@ -82,6 +110,27 @@ public class LookupsController : ControllerBase
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync();
         return Ok(new DepartmentItemFull(entity.Id, entity.Name, entity.Email, entity.IsActive));
+    }
+
+    /// <summary>
+    /// Permanently removes a branch. Tickets, staff and sub-branches referencing it are not deleted —
+    /// their branch/sub-branch reference is cleared to NULL by the database. Blocked if any tasks (which
+    /// require a branch to exist) still belong to it.
+    /// </summary>
+    [HttpDelete("departments/{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<IActionResult> DeleteDepartment(Guid id)
+    {
+        var entity = await _db.Departments.FindAsync(id);
+        if (entity is null) return NotFound();
+
+        var taskCount = await _db.WorkTasks.CountAsync(t => t.DepartmentId == id);
+        if (taskCount > 0)
+            return BadRequest(new { message = $"This branch still has {taskCount} task(s) assigned to it. Reassign or complete them first." });
+
+        _db.Departments.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 
     // ---------------- Sub-branches ----------------
@@ -171,6 +220,18 @@ public class LookupsController : ControllerBase
         return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
     }
 
+    /// <summary>Tickets referencing this help topic have it cleared to NULL by the database, not deleted.</summary>
+    [HttpDelete("help-topics/{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<IActionResult> DeleteHelpTopic(Guid id)
+    {
+        var entity = await _db.HelpTopics.FindAsync(id);
+        if (entity is null) return NotFound();
+        _db.HelpTopics.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ---------------- SLA Plans ----------------
 
     [HttpGet("sla-plans")]
@@ -213,5 +274,17 @@ public class LookupsController : ControllerBase
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync();
         return Ok(new SlaPlanItemFull(entity.Id, entity.Name, entity.ResponseTimeHours, entity.ResolutionTimeHours, entity.IsActive));
+    }
+
+    /// <summary>Tickets referencing this SLA plan have it cleared to NULL by the database, not deleted.</summary>
+    [HttpDelete("sla-plans/{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<IActionResult> DeleteSlaPlan(Guid id)
+    {
+        var entity = await _db.SlaPlans.FindAsync(id);
+        if (entity is null) return NotFound();
+        _db.SlaPlans.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 }

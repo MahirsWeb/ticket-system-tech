@@ -127,6 +127,20 @@ export function PriorityBadge({ priority }: { priority: string | null }) {
   );
 }
 
+export function StatusPill({ active, activeLabel = 'Active', inactiveLabel = 'Inactive' }: { active: boolean; activeLabel?: string; inactiveLabel?: string }) {
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'
+      )}
+    >
+      <span className={clsx('h-1.5 w-1.5 rounded-full', active ? 'bg-green-500' : 'bg-slate-400')} />
+      {active ? activeLabel : inactiveLabel}
+    </span>
+  );
+}
+
 export function Spinner({ className }: { className?: string }) {
   return (
     <svg className={clsx('animate-spin', className)} viewBox="0 0 24 24" fill="none">

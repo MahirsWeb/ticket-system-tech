@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { lookupsApi } from '../../api/lookups';
-import type { LookupItem } from '../../types';
-import { Button, Card, ErrorText, Input, Label } from '../../components/ui';
+import type { CompanyItemFull } from '../../types';
+import { Button, Card, ErrorText, Input, Label, StatusPill } from '../../components/ui';
 
 export default function CompaniesPage() {
-  const [companies, setCompanies] = useState<LookupItem[]>([]);
+  const [companies, setCompanies] = useState<CompanyItemFull[]>([]);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [contactInfo, setContactInfo] = useState('');
@@ -12,7 +13,7 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(false);
 
   function refresh() {
-    lookupsApi.companies().then(setCompanies);
+    lookupsApi.companiesAdmin().then(setCompanies);
   }
 
   useEffect(refresh, []);
@@ -40,7 +41,10 @@ export default function CompaniesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">Client companies</h1>
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">Client companies</h1>
+        <p className="mt-1 text-sm text-slate-500">Click a company to see its users and tickets.</p>
+      </div>
 
       <Card className="p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Add a company</h2>
@@ -68,9 +72,22 @@ export default function CompaniesPage() {
 
       <Card className="divide-y divide-slate-100">
         {companies.map((c) => (
-          <div key={c.id} className="px-4 py-3 text-sm">
-            {c.name}
-          </div>
+          <Link
+            key={c.id}
+            to={`/companies/${c.id}`}
+            className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition hover:bg-slate-50"
+          >
+            <div>
+              <div className="font-medium text-slate-800">{c.name}</div>
+              {(c.address || c.contactInfo) && (
+                <div className="mt-0.5 text-xs text-slate-400">{[c.address, c.contactInfo].filter(Boolean).join(' · ')}</div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <StatusPill active={c.isActive} />
+              <span className="text-slate-300">→</span>
+            </div>
+          </Link>
         ))}
         {companies.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-400">No companies yet.</div>}
       </Card>

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import { useAuthStore } from '../../store/authStore';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
-import type { CreatedUserResponse, DepartmentItemFull, LookupItem, SubBranchItemFull, UserListItemDto, UserRole } from '../../types';
-import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
+import type { CompanyItemFull, CreatedUserResponse, DepartmentItemFull, SubBranchItemFull, UserListItemDto, UserRole } from '../../types';
+import { Button, Card, ErrorText, Input, Label, Select, StatusPill } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TempPasswordModal } from './TempPasswordModal';
 
@@ -14,11 +15,12 @@ export default function UsersPage() {
 
   const [tab, setTab] = useState<'clients' | 'employees'>('clients');
   const [users, setUsers] = useState<UserListItemDto[]>([]);
-  const [companies, setCompanies] = useState<LookupItem[]>([]);
+  const [companies, setCompanies] = useState<CompanyItemFull[]>([]);
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [subBranchesByDept, setSubBranchesByDept] = useState<Record<string, SubBranchItemFull[]>>({});
   const [result, setResult] = useState<CreatedUserResponse | null>(null);
   const [confirmRegenerateFor, setConfirmRegenerateFor] = useState<UserListItemDto | null>(null);
+  const [confirmDeactivateFor, setConfirmDeactivateFor] = useState<UserListItemDto | null>(null);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -109,6 +111,31 @@ export default function UsersPage() {
     const target = confirmRegenerateFor;
     setConfirmRegenerateFor(null);
     setResult(await usersApi.regenerateTempPassword(target.id));
+  }
+
+  async function handleToggleActive(u: UserListItemDto) {
+    if (u.isActive) {
+      setConfirmDeactivateFor(u);
+      return;
+    }
+    try {
+      await usersApi.setActive(u.id, true);
+      refreshUsers();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not reactivate this account.');
+    }
+  }
+
+  async function handleConfirmDeactivate() {
+    if (!confirmDeactivateFor) return;
+    const target = confirmDeactivateFor;
+    setConfirmDeactivateFor(null);
+    try {
+      await usersApi.setActive(target.id, false);
+      refreshUsers();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not deactivate this account.');
+    }
   }
 
   const clients = users.filter((u) => u.role === 'Client');
@@ -226,8 +253,12 @@ export default function UsersPage() {
                   <th className="px-4 py-2">Sub-branch</th>
                 </>
               ) : (
-                <th className="px-4 py-2">Company</th>
+                <>
+                  <th className="px-4 py-2">Company</th>
+                  <th className="px-4 py-2">Created</th>
+                </>
               )}
+              <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Email verified</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -287,8 +318,20 @@ export default function UsersPage() {
                     </td>
                   </>
                 ) : (
-                  <td className="px-4 py-2">{u.companyName ?? '—'}</td>
+                  <>
+                    <td className="px-4 py-2">{u.companyName ?? '—'}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-slate-500">{format(new Date(u.createdAtUtc), 'dd.MM.yyyy')}</td>
+                  </>
                 )}
+                <td className="px-4 py-2">
+                  {isAdmin ? (
+                    <button onClick={() => handleToggleActive(u)} className="hover:opacity-80">
+                      <StatusPill active={u.isActive} />
+                    </button>
+                  ) : (
+                    <StatusPill active={u.isActive} />
+                  )}
+                </td>
                 <td className="px-4 py-2">{u.emailConfirmed ? 'Yes' : 'No'}</td>
                 <td className="px-4 py-2 text-right">
                   <button
@@ -302,7 +345,7 @@ export default function UsersPage() {
             ))}
             {visibleUsers.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={activeTab === 'employees' ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
                   No accounts here yet.
                 </td>
               </tr>
@@ -320,6 +363,16 @@ export default function UsersPage() {
           danger
           onConfirm={handleRegenerateConfirmed}
           onCancel={() => setConfirmRegenerateFor(null)}
+        />
+      )}
+      {confirmDeactivateFor && (
+        <ConfirmDialog
+          title="Deactivate this account?"
+          message={`${confirmDeactivateFor.firstName} ${confirmDeactivateFor.lastName} will no longer be able to log in and will stop receiving any emails from the app. You can reactivate this account at any time.`}
+          confirmLabel="Deactivate"
+          danger
+          onConfirm={handleConfirmDeactivate}
+          onCancel={() => setConfirmDeactivateFor(null)}
         />
       )}
     </div>

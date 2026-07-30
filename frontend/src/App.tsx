@@ -13,6 +13,7 @@ import TicketDetailPage from './pages/tickets/TicketDetailPage';
 import NewTicketPage from './pages/tickets/NewTicketPage';
 import NewTicketOnBehalfPage from './pages/tickets/NewTicketOnBehalfPage';
 import UsersPage from './pages/users/UsersPage';
+import CompanyDetailPage from './pages/users/CompanyDetailPage';
 import TasksPage from './pages/tasks/TasksPage';
 import CompaniesPage from './pages/users/CompaniesPage';
 import SettingsPage from './pages/settings/SettingsPage';
@@ -86,6 +87,14 @@ export default function App() {
               element={
                 <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
                   <CompaniesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/companies/:id"
+              element={
+                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                  <CompanyDetailPage />
                 </RequireRole>
               }
             />
