@@ -40,7 +40,7 @@ export const ticketsApi = {
     priority: TicketPriority;
     dueDateUtc: string;
     assignedToUserId: string;
-    category?: string;
+    categoryId?: string;
   }) => apiClient.post<TicketDetailDto>('/api/tickets/on-behalf', payload).then((r) => r.data),
 
   list: (params: TicketListParams) =>
@@ -61,7 +61,7 @@ export const ticketsApi = {
       priority: TicketPriority;
       dueDateUtc: string;
       assignedToUserId: string;
-      category?: string;
+      categoryId?: string;
     }
   ) => apiClient.post<TicketDetailDto>(`/api/tickets/${id}/open`, payload).then((r) => r.data),
 

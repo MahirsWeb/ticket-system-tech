@@ -173,7 +173,8 @@ export interface TicketDetailDto {
   slaPlanName: string | null;
   priority: TicketPriority | null;
   dueDateUtc: string | null;
-  category: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
   assignedToUserId: string | null;
   assignedToName: string | null;
   assignees: TicketAssigneeDto[];

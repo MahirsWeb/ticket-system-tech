@@ -3,7 +3,7 @@ import { lookupsApi } from '../../api/lookups';
 import { usersApi } from '../../api/users';
 import { ticketsApi } from '../../api/tickets';
 import type { DepartmentItemFull, LookupItem, SlaPlanItem, SubBranchItemFull, TicketDetailDto, TicketPriority, TicketSource } from '../../types';
-import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
+import { Button, Card, ErrorText, Label, Select } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 
 const SOURCES: TicketSource[] = ['Phone', 'Email', 'TicketSystem', 'Other'];
@@ -17,6 +17,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [subBranches, setSubBranches] = useState<SubBranchItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItem[]>([]);
+  const [categories, setCategories] = useState<LookupItem[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
 
   const [source, setSource] = useState<TicketSource>('TicketSystem');
@@ -28,19 +29,22 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    Promise.all([lookupsApi.helpTopics(), lookupsApi.departments(), lookupsApi.slaPlans()]).then(([topics, depts, slas]) => {
-      setHelpTopics(topics);
-      setDepartments(depts);
-      setSlaPlans(slas);
-      if (topics[0]) setHelpTopicId(topics[0].id);
-      if (isAdmin && depts[0]) setDepartmentId(depts[0].id);
-      if (slas[0]) setSlaPlanId(slas[0].id);
-    });
+    Promise.all([lookupsApi.helpTopics(), lookupsApi.departments(), lookupsApi.slaPlans(), lookupsApi.ticketCategories()]).then(
+      ([topics, depts, slas, cats]) => {
+        setHelpTopics(topics);
+        setDepartments(depts);
+        setSlaPlans(slas);
+        setCategories(cats);
+        if (topics[0]) setHelpTopicId(topics[0].id);
+        if (isAdmin && depts[0]) setDepartmentId(depts[0].id);
+        if (slas[0]) setSlaPlanId(slas[0].id);
+      }
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -90,7 +94,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         priority,
         dueDateUtc: new Date(dueDate).toISOString(),
         assignedToUserId,
-        category: category.trim() || undefined,
+        categoryId: categoryId || undefined,
       });
       onOpened(updated);
     } catch (err: any) {
@@ -196,7 +200,14 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         </div>
         <div>
           <Label>Category (internal, staff only)</Label>
-          <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Hardware, Billing, Access request…" />
+          <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">No category</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
         </div>
         <div className="col-span-2">
           <ErrorText>{error}</ErrorText>

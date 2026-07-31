@@ -121,7 +121,7 @@ public class TicketsController : ControllerBase
             SlaPlanId = request.SlaPlanId,
             Priority = request.Priority,
             DueDateUtc = request.DueDateUtc,
-            Category = request.Category,
+            CategoryId = request.CategoryId,
             AssignedToUserId = request.AssignedToUserId,
             OpenedByUserId = _currentUser.UserId,
             OpenedAtUtc = DateTime.UtcNow
@@ -307,7 +307,7 @@ public class TicketsController : ControllerBase
         ticket.SlaPlanId = request.SlaPlanId;
         ticket.Priority = request.Priority;
         ticket.DueDateUtc = request.DueDateUtc;
-        ticket.Category = request.Category;
+        ticket.CategoryId = request.CategoryId;
         ticket.AssignedToUserId = request.AssignedToUserId;
         ticket.Status = TicketStatus.Open;
         ticket.OpenedByUserId = _currentUser.UserId;
@@ -589,6 +589,7 @@ public class TicketsController : ControllerBase
         var t = await _db.Tickets.AsNoTracking()
             .Include(x => x.Company)
             .Include(x => x.HelpTopic)
+            .Include(x => x.Category)
             .Include(x => x.Department)
             .Include(x => x.SubBranch)
             .Include(x => x.SlaPlan)
@@ -635,7 +636,8 @@ public class TicketsController : ControllerBase
             t.Source?.ToString(), t.HelpTopicId, t.HelpTopic?.Name, t.DepartmentId, t.Department?.Name,
             t.SubBranchId, t.SubBranch?.Name,
             t.SlaPlanId, t.SlaPlan?.Name, t.Priority?.ToString(), t.DueDateUtc,
-            _currentUser.Role == UserRole.Client ? null : t.Category,
+            _currentUser.Role == UserRole.Client ? null : t.CategoryId,
+            _currentUser.Role == UserRole.Client ? null : t.Category?.Name,
             t.AssignedToUserId,
             t.AssignedToUserId.HasValue ? NameOf(t.AssignedToUserId.Value) : null,
             assigneeDtos, t.WorkStartedAtUtc, t.WorkEndedAtUtc,

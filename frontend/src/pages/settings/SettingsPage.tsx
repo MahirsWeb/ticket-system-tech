@@ -6,11 +6,12 @@ import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull, SubBranchItem
 import { Button, Card, ErrorText, Input, Label, StatusPill, SuccessText } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
-type TabKey = 'branches' | 'helpTopics' | 'slaPlans' | 'notifications';
+type TabKey = 'branches' | 'helpTopics' | 'categories' | 'slaPlans' | 'notifications';
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'branches', label: 'Branches', icon: '🏢' },
   { key: 'helpTopics', label: 'Help Topics', icon: '🏷️' },
+  { key: 'categories', label: 'Categories', icon: '🗂️' },
   { key: 'slaPlans', label: 'SLA Plans', icon: '⏱️' },
   { key: 'notifications', label: 'Notifications', icon: '⏰' },
 ];
@@ -251,6 +252,7 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
 
 function SimpleLookupTab({
   itemNoun,
+  pluralNoun,
   items,
   onRefresh,
   onCreate,
@@ -259,6 +261,7 @@ function SimpleLookupTab({
   deleteWarning,
 }: {
   itemNoun: string;
+  pluralNoun?: string;
   items: LookupItemFull[];
   onRefresh: () => void;
   onCreate: (name: string) => Promise<unknown>;
@@ -266,6 +269,7 @@ function SimpleLookupTab({
   onDelete: (id: string) => Promise<unknown>;
   deleteWarning: string;
 }) {
+  const plural = pluralNoun ?? `${itemNoun}s`;
   const [name, setName] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -336,9 +340,9 @@ function SimpleLookupTab({
       <Panel>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-slate-800">
-            Existing {itemNoun}s ({items.length})
+            Existing {plural} ({items.length})
           </h2>
-          <Input placeholder={`Search ${itemNoun}s…`} value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+          <Input placeholder={`Search ${plural}…`} value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
         </div>
         <div className="divide-y divide-slate-100">
           {filtered.map((item) => (
@@ -381,7 +385,7 @@ function SimpleLookupTab({
               </div>
             </ListRow>
           ))}
-          {filtered.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No {itemNoun}s found.</p>}
+          {filtered.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No {plural} found.</p>}
         </div>
       </Panel>
 
@@ -578,6 +582,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<TabKey>('branches');
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [helpTopics, setHelpTopics] = useState<LookupItemFull[]>([]);
+  const [categories, setCategories] = useState<LookupItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItemFull[]>([]);
 
   function refreshDepartments() {
@@ -586,6 +591,9 @@ export default function SettingsPage() {
   function refreshHelpTopics() {
     lookupsApi.helpTopicsAdmin().then(setHelpTopics);
   }
+  function refreshCategories() {
+    lookupsApi.ticketCategoriesAdmin().then(setCategories);
+  }
   function refreshSlaPlans() {
     lookupsApi.slaPlansAdmin().then(setSlaPlans);
   }
@@ -593,6 +601,7 @@ export default function SettingsPage() {
   useEffect(() => {
     refreshDepartments();
     refreshHelpTopics();
+    refreshCategories();
     refreshSlaPlans();
   }, []);
 
@@ -631,6 +640,18 @@ export default function SettingsPage() {
           onUpdate={lookupsApi.updateHelpTopic}
           onDelete={lookupsApi.deleteHelpTopic}
           deleteWarning="This help topic will be permanently deleted. Any tickets currently using it simply lose their help topic reference — nothing else is affected."
+        />
+      )}
+      {tab === 'categories' && (
+        <SimpleLookupTab
+          itemNoun="category"
+          pluralNoun="categories"
+          items={categories}
+          onRefresh={refreshCategories}
+          onCreate={lookupsApi.createTicketCategory}
+          onUpdate={lookupsApi.updateTicketCategory}
+          onDelete={lookupsApi.deleteTicketCategory}
+          deleteWarning="This category will be permanently deleted. Any tickets currently using it simply lose their category reference — nothing else is affected."
         />
       )}
       {tab === 'slaPlans' && <SlaPlansTab items={slaPlans} onRefresh={refreshSlaPlans} />}

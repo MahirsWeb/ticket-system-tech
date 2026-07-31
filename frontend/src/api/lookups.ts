@@ -38,6 +38,15 @@ export const lookupsApi = {
     apiClient.put<LookupItemFull>(`/api/help-topics/${id}`, { name, isActive }).then((r) => r.data),
   deleteHelpTopic: (id: string) => apiClient.delete(`/api/help-topics/${id}`).then((r) => r.data),
 
+  // Ticket categories — internal-only classification, staff/Admin only (clients never see this list).
+  ticketCategories: () => apiClient.get<LookupItem[]>('/api/ticket-categories').then((r) => r.data),
+  ticketCategoriesAdmin: () =>
+    apiClient.get<LookupItemFull[]>('/api/ticket-categories', { params: { includeInactive: true } }).then((r) => r.data),
+  createTicketCategory: (name: string) => apiClient.post<LookupItemFull>('/api/ticket-categories', { name }).then((r) => r.data),
+  updateTicketCategory: (id: string, name: string, isActive: boolean) =>
+    apiClient.put<LookupItemFull>(`/api/ticket-categories/${id}`, { name, isActive }).then((r) => r.data),
+  deleteTicketCategory: (id: string) => apiClient.delete(`/api/ticket-categories/${id}`).then((r) => r.data),
+
   slaPlans: () => apiClient.get<SlaPlanItem[]>('/api/sla-plans').then((r) => r.data),
   slaPlansAdmin: () =>
     apiClient.get<SlaPlanItemFull[]>('/api/sla-plans', { params: { includeInactive: true } }).then((r) => r.data),

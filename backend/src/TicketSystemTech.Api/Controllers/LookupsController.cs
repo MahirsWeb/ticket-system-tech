@@ -232,6 +232,60 @@ public class LookupsController : ControllerBase
         return NoContent();
     }
 
+    // ---------------- Ticket Categories ----------------
+    // Internal-only classification staff pick when opening a ticket — clients never see this list.
+
+    [HttpGet("ticket-categories")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    public async Task<ActionResult<List<object>>> GetTicketCategories([FromQuery] bool includeInactive = false)
+    {
+        var isAdmin = User.IsInRole(nameof(UserRole.Admin));
+        var query = _db.TicketCategories.AsQueryable();
+        if (!includeInactive || !isAdmin) query = query.Where(c => c.IsActive);
+
+        if (isAdmin)
+        {
+            var full = await query.OrderBy(c => c.Name).Select(c => new LookupItemFull(c.Id, c.Name, c.IsActive)).ToListAsync();
+            return Ok(full);
+        }
+        var items = await query.OrderBy(c => c.Name).Select(c => new LookupItem(c.Id, c.Name)).ToListAsync();
+        return Ok(items);
+    }
+
+    [HttpPost("ticket-categories")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<ActionResult<LookupItemFull>> CreateTicketCategory(NameOnlyRequest request)
+    {
+        var entity = new TicketCategory { Name = request.Name };
+        _db.TicketCategories.Add(entity);
+        await _db.SaveChangesAsync();
+        return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
+    }
+
+    [HttpPut("ticket-categories/{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<ActionResult<LookupItemFull>> UpdateTicketCategory(Guid id, UpdateNameRequest request)
+    {
+        var entity = await _db.TicketCategories.FindAsync(id);
+        if (entity is null) return NotFound();
+        entity.Name = request.Name;
+        entity.IsActive = request.IsActive;
+        await _db.SaveChangesAsync();
+        return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
+    }
+
+    /// <summary>Tickets referencing this category have it cleared to NULL by the database, not deleted.</summary>
+    [HttpDelete("ticket-categories/{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    public async Task<IActionResult> DeleteTicketCategory(Guid id)
+    {
+        var entity = await _db.TicketCategories.FindAsync(id);
+        if (entity is null) return NotFound();
+        _db.TicketCategories.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ---------------- SLA Plans ----------------
 
     [HttpGet("sla-plans")]

@@ -13,6 +13,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<HelpTopic> HelpTopics => Set<HelpTopic>();
+    public DbSet<TicketCategory> TicketCategories => Set<TicketCategory>();
     public DbSet<SlaPlan> SlaPlans => Set<SlaPlan>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
@@ -64,6 +65,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.Property(h => h.Name).HasMaxLength(150).IsRequired();
         });
 
+        builder.Entity<TicketCategory>(e =>
+        {
+            e.Property(c => c.Name).HasMaxLength(150).IsRequired();
+        });
+
         builder.Entity<SlaPlan>(e =>
         {
             e.Property(s => s.Name).HasMaxLength(150).IsRequired();
@@ -74,7 +80,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.Property(t => t.TicketNumber).HasMaxLength(20).IsRequired();
             e.HasIndex(t => t.TicketNumber).IsUnique();
             e.Property(t => t.Title).HasMaxLength(300).IsRequired();
-            e.Property(t => t.Category).HasMaxLength(150);
             e.HasIndex(t => t.Status);
             e.HasIndex(t => t.CompanyId);
             e.HasIndex(t => t.AssignedToUserId);
@@ -85,6 +90,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
             e.HasOne(t => t.Company).WithMany().HasForeignKey(t => t.CompanyId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.HelpTopic).WithMany().HasForeignKey(t => t.HelpTopicId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(t => t.Category).WithMany().HasForeignKey(t => t.CategoryId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.Department).WithMany().HasForeignKey(t => t.DepartmentId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.SubBranch).WithMany().HasForeignKey(t => t.SubBranchId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.SlaPlan).WithMany().HasForeignKey(t => t.SlaPlanId).OnDelete(DeleteBehavior.SetNull);

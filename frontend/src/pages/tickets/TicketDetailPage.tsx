@@ -84,7 +84,7 @@ export default function TicketDetailPage() {
             <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />
             <InfoRow label="Opened at" value={ticket.openedAtUtc ? format(new Date(ticket.openedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
             <InfoRow label="Closed at" value={ticket.closedAtUtc ? format(new Date(ticket.closedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
-            {isStaff && <InfoRow label="Category" value={ticket.category} />}
+            {isStaff && <InfoRow label="Category" value={ticket.categoryName} />}
           </div>
           {isStaff && (
             <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">

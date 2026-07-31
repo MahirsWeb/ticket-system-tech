@@ -36,8 +36,9 @@ public class Ticket : BaseEntity
     public DateTime? DueDateUtc { get; set; }
     public Guid? AssignedToUserId { get; set; }
 
-    /// <summary>Free-text internal categorization set by staff when opening the ticket. Staff/Admin only — never shown to the client.</summary>
-    public string? Category { get; set; }
+    /// <summary>Internal categorization set by staff when opening the ticket, picked from an Admin-managed list. Staff/Admin only — never shown to the client.</summary>
+    public Guid? CategoryId { get; set; }
+    public TicketCategory? Category { get; set; }
 
     /// <summary>Urgency chosen by whoever opens the ticket. Drives the default list sort order.</summary>
     public TicketPriority? Priority { get; set; }
