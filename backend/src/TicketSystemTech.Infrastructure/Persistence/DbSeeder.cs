@@ -7,52 +7,20 @@ using TicketSystemTech.Infrastructure.Identity;
 
 namespace TicketSystemTech.Infrastructure.Persistence;
 
-/// <summary>Seeds reference data (SLA plans, departments, help topics) and the first Admin account.</summary>
+/// <summary>Ensures an Admin account always exists.</summary>
 public static class DbSeeder
 {
     public const string SeedAdminEmail = "hodzicmahir002@gmail.com";
     public const string SeedAdminPassword = "Admin12345!";
 
+    /// <summary>
+    /// Only ensures an Admin account exists — a safety net so the app is never fully locked out.
+    /// Does NOT seed any reference/lookup data (branches, help topics, SLA plans, categories) or
+    /// the overdue-notification settings row; those are created on demand through the Settings UI
+    /// (OverdueNotificationSettings is lazily created on first read/write in SettingsController).
+    /// </summary>
     public static async Task SeedAsync(AppDbContext db, UserManager<ApplicationUser> userManager, ILogger logger)
     {
-        if (!await db.SlaPlans.AnyAsync())
-        {
-            db.SlaPlans.AddRange(
-                new SlaPlan { Name = "Standard", ResolutionTimeHours = 72 },
-                new SlaPlan { Name = "Priority", ResolutionTimeHours = 24 },
-                new SlaPlan { Name = "Critical", ResolutionTimeHours = 8 }
-            );
-        }
-
-        if (!await db.Departments.AnyAsync())
-        {
-            db.Departments.AddRange(
-                new Department { Name = "Technical Support", Email = "support@ticketsystemtech.local" },
-                new Department { Name = "Consulting", Email = "consulting@ticketsystemtech.local" },
-                new Department { Name = "Billing", Email = "billing@ticketsystemtech.local" },
-                new Department { Name = "General", Email = "general@ticketsystemtech.local" }
-            );
-        }
-
-        if (!await db.HelpTopics.AnyAsync())
-        {
-            db.HelpTopics.AddRange(
-                new HelpTopic { Name = "Bug Report" },
-                new HelpTopic { Name = "Technical Problem" },
-                new HelpTopic { Name = "Feature Request" },
-                new HelpTopic { Name = "Account Issue" },
-                new HelpTopic { Name = "General Question" },
-                new HelpTopic { Name = "Other" }
-            );
-        }
-
-        if (!await db.OverdueNotificationSettings.AnyAsync())
-        {
-            db.OverdueNotificationSettings.Add(new OverdueNotificationSettings { NotifyOnSlaBreach = true, ManualOverdueDays = null });
-        }
-
-        await db.SaveChangesAsync();
-
         var existingAdmin = await userManager.FindByEmailAsync(SeedAdminEmail);
         if (existingAdmin is null)
         {
