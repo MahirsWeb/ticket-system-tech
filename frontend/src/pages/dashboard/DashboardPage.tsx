@@ -15,7 +15,7 @@ import type {
   TopIssueDto,
   UserListItemDto,
 } from '../../types';
-import { Button, Card, Select } from '../../components/ui';
+import { Button, Card, ErrorText, Select } from '../../components/ui';
 import { DateRangePicker } from '../../components/DateRangePicker';
 import { GanttChart } from '../../components/GanttChart';
 import { useAuthStore } from '../../store/authStore';
@@ -104,6 +104,7 @@ export default function DashboardPage() {
   const [ganttDate, setGanttDate] = useState(() => new Date());
   const [ganttData, setGanttData] = useState<GanttResponse | null>(null);
   const [ganttLoading, setGanttLoading] = useState(false);
+  const [ganttError, setGanttError] = useState<string | null>(null);
 
   const rangeDays = Math.round((to.getTime() - from.getTime()) / 86400000);
   const canRunAiInsights = rangeDays >= MIN_AI_INSIGHTS_DAYS;
@@ -127,9 +128,11 @@ export default function DashboardPage() {
       return;
     }
     setGanttLoading(true);
+    setGanttError(null);
     workTasksApi
       .gantt(ganttUserId, format(ganttDate, 'yyyy-MM-dd'))
       .then(setGanttData)
+      .catch((err: any) => setGanttError(err?.response?.data?.message ?? 'Could not load the timeline.'))
       .finally(() => setGanttLoading(false));
   }, [ganttUserId, ganttDate]);
 
@@ -297,6 +300,8 @@ export default function DashboardPage() {
           <p className="py-10 text-center text-sm text-slate-400">Choose a person above to see their timeline.</p>
         ) : ganttLoading ? (
           <p className="py-10 text-center text-sm text-slate-400">Loading…</p>
+        ) : ganttError ? (
+          <ErrorText>{ganttError}</ErrorText>
         ) : (
           <GanttChart entries={ganttData?.entries ?? []} date={ganttDate} />
         )}

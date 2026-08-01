@@ -204,16 +204,29 @@ public class WorkTasksController : ControllerBase
         if (_currentUser.Role != UserRole.Admin && targetUser.DepartmentId != _currentUser.DepartmentId)
             return Forbid();
 
-        var day = (date ?? DateTime.UtcNow).Date;
+        var day = DateTime.SpecifyKind((date ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
         var dayEnd = day.AddDays(1);
 
-        var tickets = await _db.Tickets.AsNoTracking()
-            .Where(t => (t.AssignedToUserId == userId || t.Assignees.Any(a => a.UserId == userId))
-                && t.WorkStartedAtUtc != null
-                && t.WorkStartedAtUtc < dayEnd
-                && (t.WorkEndedAtUtc == null || t.WorkEndedAtUtc >= day))
-            .Select(t => new GanttEntryDto("Ticket", t.Id, $"#{t.TicketNumber} — {t.Title}", t.Status.ToString(), t.WorkStartedAtUtc, t.WorkEndedAtUtc, t.Status.ToString()))
+        // A ticket's Gantt block uses the manually-logged work session if staff filled one in (WorkStartedAtUtc/
+        // WorkEndedAtUtc, precise), otherwise falls back to when the ticket was opened/closed — so a ticket shows
+        // up on the timeline as soon as it's opened, without staff having to remember to fill in a separate field.
+        var ticketRows = await _db.Tickets.AsNoTracking()
+            .Where(t => t.AssignedToUserId == userId || t.Assignees.Any(a => a.UserId == userId))
+            .Select(t => new
+            {
+                t.Id,
+                t.TicketNumber,
+                t.Title,
+                t.Status,
+                Start = t.WorkStartedAtUtc ?? t.OpenedAtUtc,
+                End = t.WorkEndedAtUtc ?? t.ClosedAtUtc
+            })
+            .Where(t => t.Start != null && t.Start < dayEnd && (t.End == null || t.End >= day))
             .ToListAsync();
+
+        var tickets = ticketRows
+            .Select(t => new GanttEntryDto("Ticket", t.Id, $"#{t.TicketNumber} — {t.Title}", t.Status.ToString(), t.Start, t.End, t.Status.ToString()))
+            .ToList();
 
         var tasks = await _db.WorkTasks.AsNoTracking()
             .Where(t => t.AssignedToUserId == userId
