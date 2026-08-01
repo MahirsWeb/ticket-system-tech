@@ -29,17 +29,6 @@ function ListRow({ children }: { children: React.ReactNode }) {
   return <div className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-slate-50">{children}</div>;
 }
 
-function HelpBadge({ hint }: { hint: string }) {
-  return (
-    <span
-      title={hint}
-      className="flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold text-slate-400"
-    >
-      ?
-    </span>
-  );
-}
-
 function SubBranchesInline({ departmentId }: { departmentId: string }) {
   const [items, setItems] = useState<SubBranchItemFull[]>([]);
   const [name, setName] = useState('');
@@ -695,14 +684,6 @@ function CategoriesAndSlaTab({
 }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3.5 py-2.5 text-xs text-blue-900">
-        <HelpBadge hint="SLA Plan = how many hours staff have to resolve a ticket (drives due dates and SLA-compliance reporting). Category = an internal label for what kind of issue it is (e.g. Hardware, Billing) — purely for organizing and reporting, no time attached. Both are staff/Admin-only; clients never see either." />
-        <span>
-          Not sure which to use? Hover the <b>?</b> for the difference between a Category and an SLA Plan. Neither is
-          ever visible to clients.
-        </span>
-      </div>
-
       <div>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Categories</h2>
         <SimpleLookupTab

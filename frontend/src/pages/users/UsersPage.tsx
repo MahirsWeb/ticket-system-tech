@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useAuthStore } from '../../store/authStore';
 import { usersApi } from '../../api/users';
@@ -12,6 +13,8 @@ export default function UsersPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
   const canSeeEmployees = isAdmin; // non-admin staff only manage clients here
+  const [searchParams] = useSearchParams();
+  const preselectedCompanyId = searchParams.get('companyId');
 
   const [tab, setTab] = useState<'clients' | 'employees'>('clients');
   const [users, setUsers] = useState<UserListItemDto[]>([]);
@@ -26,7 +29,7 @@ export default function UsersPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [accountType, setAccountType] = useState<'Client' | UserRole>('Client');
-  const [companyId, setCompanyId] = useState('');
+  const [companyId, setCompanyId] = useState(preselectedCompanyId ?? '');
   const [departmentId, setDepartmentId] = useState('');
   const [subBranchId, setSubBranchId] = useState('');
   const [error, setError] = useState<string | null>(null);

@@ -51,15 +51,15 @@ export default function CompaniesPage() {
         <form onSubmit={handleCreate} className="grid grid-cols-3 gap-4">
           <div>
             <Label>Name</Label>
-            <Input required value={name} onChange={(e) => setName(e.target.value)} />
+            <Input required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
             <Label>Address (optional)</Label>
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+            <Input maxLength={100} value={address} onChange={(e) => setAddress(e.target.value)} />
           </div>
           <div>
             <Label>Contact info (optional)</Label>
-            <Input value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
+            <Input maxLength={120} value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
           </div>
           <div className="col-span-3">
             <ErrorText>{error}</ErrorText>
