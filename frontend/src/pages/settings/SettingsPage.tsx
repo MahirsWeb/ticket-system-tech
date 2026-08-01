@@ -29,6 +29,7 @@ function SubBranchesInline({ departmentId }: { departmentId: string }) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<SubBranchItemFull | null>(null);
 
   function refresh() {
     lookupsApi.subBranchesAdmin(departmentId).then((items) => {
@@ -53,7 +54,18 @@ function SubBranchesInline({ departmentId }: { departmentId: string }) {
   }
 
   async function handleToggleActive(item: SubBranchItemFull) {
-    await lookupsApi.updateSubBranch(item.id, item.name, !item.isActive);
+    if (item.isActive) {
+      setConfirmDeactivate(item);
+      return;
+    }
+    await lookupsApi.updateSubBranch(item.id, item.name, true);
+    refresh();
+  }
+
+  async function handleConfirmDeactivate() {
+    if (!confirmDeactivate) return;
+    await lookupsApi.updateSubBranch(confirmDeactivate.id, confirmDeactivate.name, false);
+    setConfirmDeactivate(null);
     refresh();
   }
 
@@ -86,6 +98,17 @@ function SubBranchesInline({ departmentId }: { departmentId: string }) {
         ))}
         {items.length === 0 && <p className="py-2 text-xs text-slate-400">No sub-branches — this branch is used as a single unit.</p>}
       </div>
+
+      {confirmDeactivate && (
+        <ConfirmDialog
+          title="Deactivate this sub-branch?"
+          message={`Tickets and staff already assigned to "${confirmDeactivate.name}" keep that assignment and are completely unaffected — this does not change any existing tickets or statistics. It just removes "${confirmDeactivate.name}" from the picker when opening a new ticket or assigning staff. If this is the branch's only active sub-branch, the branch will behave as if it has none until you reactivate it.`}
+          confirmLabel="Deactivate"
+          danger
+          onConfirm={handleConfirmDeactivate}
+          onCancel={() => setConfirmDeactivate(null)}
+        />
+      )}
     </div>
   );
 }
@@ -101,6 +124,7 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DepartmentItemFull | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<DepartmentItemFull | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -111,7 +135,10 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim() || !email.trim()) return;
+    if (!name.trim() || !email.trim()) {
+      setError('Both branch name and email are required.');
+      return;
+    }
     try {
       await lookupsApi.createDepartment(name.trim(), email.trim());
       setName('');
@@ -123,7 +150,18 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
   }
 
   async function handleToggleActive(item: DepartmentItemFull) {
-    await lookupsApi.updateDepartment(item.id, item.name, item.email, !item.isActive);
+    if (item.isActive) {
+      setConfirmDeactivate(item);
+      return;
+    }
+    await lookupsApi.updateDepartment(item.id, item.name, item.email, true);
+    onRefresh();
+  }
+
+  async function handleConfirmDeactivate() {
+    if (!confirmDeactivate) return;
+    await lookupsApi.updateDepartment(confirmDeactivate.id, confirmDeactivate.name, confirmDeactivate.email, false);
+    setConfirmDeactivate(null);
     onRefresh();
   }
 
@@ -236,7 +274,7 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
       {confirmDelete && (
         <ConfirmDialog
           title="Delete this branch?"
-          message={`"${confirmDelete.name}" will be permanently deleted. Any tickets or staff currently assigned to it will simply become unassigned from a branch — nothing else is deleted.${deleteError ? `\n\n${deleteError}` : ''}`}
+          message={`"${confirmDelete.name}" and ALL of its sub-branches will be permanently deleted. Tickets and staff currently assigned to it become unassigned from a branch (not deleted themselves), and those tickets lose their branch name in past reports/statistics going forward since the branch record itself is gone. This cannot be undone.${deleteError ? `\n\n${deleteError}` : ''}`}
           confirmLabel="Delete"
           danger
           onConfirm={handleConfirmDelete}
@@ -244,6 +282,16 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
             setConfirmDelete(null);
             setDeleteError(null);
           }}
+        />
+      )}
+      {confirmDeactivate && (
+        <ConfirmDialog
+          title="Deactivate this branch?"
+          message={`Existing tickets, staff and statistics for "${confirmDeactivate.name}" are completely unaffected — nothing is changed or deleted. This only removes it from the picker when opening a new ticket or assigning new staff. Staff already in this branch can still work and open tickets in it as normal; its sub-branches are not affected either.`}
+          confirmLabel="Deactivate"
+          danger
+          onConfirm={handleConfirmDeactivate}
+          onCancel={() => setConfirmDeactivate(null)}
         />
       )}
     </div>

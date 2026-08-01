@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TicketSystemTech.Api.Contracts;
+using TicketSystemTech.Api.Emails;
+using TicketSystemTech.Application.Common.Interfaces;
 using TicketSystemTech.Domain.Entities;
 using TicketSystemTech.Domain.Enums;
 using TicketSystemTech.Infrastructure.Persistence;
@@ -14,10 +16,12 @@ namespace TicketSystemTech.Api.Controllers;
 public class LookupsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IEmailSender _emailSender;
 
-    public LookupsController(AppDbContext db)
+    public LookupsController(AppDbContext db, IEmailSender emailSender)
     {
         _db = db;
+        _emailSender = emailSender;
     }
 
     // ---------------- Companies ----------------
@@ -92,6 +96,10 @@ public class LookupsController : ControllerBase
         var entity = new Department { Name = request.Name, Email = request.Email };
         _db.Departments.Add(entity);
         await _db.SaveChangesAsync();
+
+        await _emailSender.SendAsync(entity.Email, "Welcome to Ticket System Tech",
+            EmailTemplates.BranchWelcome(entity.Name));
+
         return Ok(new DepartmentItemFull(entity.Id, entity.Name, entity.Email, entity.IsActive));
     }
 

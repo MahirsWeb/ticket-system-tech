@@ -88,6 +88,15 @@ public static class EmailTemplates
         <p>Please take a look as soon as you can.</p>
         """);
 
+    public static string BranchWelcome(string branchName) => Wrap(
+        "Welcome to Ticket System Tech",
+        $"""
+        <p>Hi,</p>
+        <p>This mailbox has just been set up as the dedicated email for the <b>{branchName}</b> branch on
+        Ticket System Tech. Tickets and internal notifications for this branch will reference this address.</p>
+        <p>If you weren't expecting this, please contact your system administrator.</p>
+        """);
+
     public static string WorkTaskAssigned(string recipientFirstName, string taskTitle, string assignedByName) => Wrap(
         "A task has been assigned to you",
         $"""
