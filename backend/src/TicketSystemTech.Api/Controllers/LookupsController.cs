@@ -17,11 +17,13 @@ public class LookupsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IEmailSender _emailSender;
+    private readonly ICurrentUserService _currentUser;
 
-    public LookupsController(AppDbContext db, IEmailSender emailSender)
+    public LookupsController(AppDbContext db, IEmailSender emailSender, ICurrentUserService currentUser)
     {
         _db = db;
         _emailSender = emailSender;
+        _currentUser = currentUser;
     }
 
     // ---------------- Companies ----------------
@@ -97,8 +99,9 @@ public class LookupsController : ControllerBase
         _db.Departments.Add(entity);
         await _db.SaveChangesAsync();
 
+        var creatorEmail = await _db.Users.Where(u => u.Id == _currentUser.UserId).Select(u => u.Email).FirstOrDefaultAsync();
         await _emailSender.SendAsync(entity.Email, "Welcome to Ticket System Tech",
-            EmailTemplates.BranchWelcome(entity.Name));
+            EmailTemplates.BranchWelcome(entity.Name, creatorEmail ?? "your administrator"));
 
         return Ok(new DepartmentItemFull(entity.Id, entity.Name, entity.Email, entity.IsActive));
     }

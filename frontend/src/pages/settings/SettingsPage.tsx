@@ -6,13 +6,18 @@ import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull, SubBranchItem
 import { Button, Card, ErrorText, Input, Label, StatusPill, SuccessText } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
-type TabKey = 'branches' | 'helpTopics' | 'categories' | 'slaPlans' | 'notifications';
+const NAME_MAX = 25;
+const EMAIL_MAX = 50;
+const HELP_TOPIC_MAX = 75;
+const CATEGORY_MAX = 70;
+const SLA_NAME_MAX = 70;
+
+type TabKey = 'branches' | 'helpTopics' | 'categoriesAndSla' | 'notifications';
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'branches', label: 'Branches', icon: '🏢' },
   { key: 'helpTopics', label: 'Help Topics', icon: '🏷️' },
-  { key: 'categories', label: 'Categories', icon: '🗂️' },
-  { key: 'slaPlans', label: 'SLA Plans', icon: '⏱️' },
+  { key: 'categoriesAndSla', label: 'Categories & SLA', icon: '🗂️' },
   { key: 'notifications', label: 'Notifications', icon: '⏰' },
 ];
 
@@ -22,6 +27,17 @@ function Panel({ children, className }: { children: React.ReactNode; className?:
 
 function ListRow({ children }: { children: React.ReactNode }) {
   return <div className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-slate-50">{children}</div>;
+}
+
+function HelpBadge({ hint }: { hint: string }) {
+  return (
+    <span
+      title={hint}
+      className="flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold text-slate-400"
+    >
+      ?
+    </span>
+  );
 }
 
 function SubBranchesInline({ departmentId }: { departmentId: string }) {
@@ -78,8 +94,17 @@ function SubBranchesInline({ departmentId }: { departmentId: string }) {
         ticket assignment. If any exist, staff and tickets in this branch must pick one.
       </p>
       <form onSubmit={handleCreate} className="mb-2 flex gap-2">
-        <Input placeholder="Sub-branch name…" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs text-xs" />
-        <Button type="submit" variant="secondary" className="text-xs">
+        <Input
+          placeholder="Sub-branch name…"
+          value={name}
+          maxLength={NAME_MAX}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
+          className="max-w-xs text-xs"
+        />
+        <Button type="submit" variant="secondary" className="text-xs" disabled={!name.trim()}>
           Add
         </Button>
       </form>
@@ -188,6 +213,8 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
     }
   }
 
+  const canAdd = !!name.trim() && !!email.trim();
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
       <Panel className="h-fit">
@@ -196,14 +223,31 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
         <form onSubmit={handleCreate} className="space-y-3">
           <div>
             <Label>Branch name</Label>
-            <Input placeholder="e.g. Servis" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              placeholder="e.g. Servis"
+              value={name}
+              maxLength={NAME_MAX}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError(null);
+              }}
+            />
           </div>
           <div>
             <Label>Branch email</Label>
-            <Input type="email" placeholder="servis@firma.ba" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input
+              type="email"
+              placeholder="servis@firma.ba"
+              value={email}
+              maxLength={EMAIL_MAX}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(null);
+              }}
+            />
           </div>
           <ErrorText>{error}</ErrorText>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={!canAdd}>
             + Add Branch
           </Button>
         </form>
@@ -220,8 +264,8 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
               <ListRow>
                 {editingId === item.id ? (
                   <div className="flex flex-1 gap-2">
-                    <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
-                    <Input type="email" value={editingEmail} onChange={(e) => setEditingEmail(e.target.value)} className="max-w-xs" />
+                    <Input value={editingName} maxLength={NAME_MAX} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
+                    <Input type="email" value={editingEmail} maxLength={EMAIL_MAX} onChange={(e) => setEditingEmail(e.target.value)} className="max-w-xs" />
                   </div>
                 ) : (
                   <span className="text-sm text-slate-800">
@@ -301,21 +345,25 @@ function BranchesTab({ items, onRefresh }: { items: DepartmentItemFull[]; onRefr
 function SimpleLookupTab({
   itemNoun,
   pluralNoun,
+  maxLength,
   items,
   onRefresh,
   onCreate,
   onUpdate,
   onDelete,
   deleteWarning,
+  deactivateWarning,
 }: {
   itemNoun: string;
   pluralNoun?: string;
+  maxLength: number;
   items: LookupItemFull[];
   onRefresh: () => void;
   onCreate: (name: string) => Promise<unknown>;
   onUpdate: (id: string, name: string, isActive: boolean) => Promise<unknown>;
   onDelete: (id: string) => Promise<unknown>;
   deleteWarning: string;
+  deactivateWarning: string;
 }) {
   const plural = pluralNoun ?? `${itemNoun}s`;
   const [name, setName] = useState('');
@@ -325,6 +373,7 @@ function SimpleLookupTab({
   const [editingName, setEditingName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<LookupItemFull | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<LookupItemFull | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -346,7 +395,18 @@ function SimpleLookupTab({
   }
 
   async function handleToggleActive(item: LookupItemFull) {
-    await onUpdate(item.id, item.name, !item.isActive);
+    if (item.isActive) {
+      setConfirmDeactivate(item);
+      return;
+    }
+    await onUpdate(item.id, item.name, true);
+    onRefresh();
+  }
+
+  async function handleConfirmDeactivate() {
+    if (!confirmDeactivate) return;
+    await onUpdate(confirmDeactivate.id, confirmDeactivate.name, false);
+    setConfirmDeactivate(null);
     onRefresh();
   }
 
@@ -376,10 +436,18 @@ function SimpleLookupTab({
         <form onSubmit={handleCreate} className="mt-4 space-y-3">
           <div>
             <Label>Name</Label>
-            <Input placeholder={`Enter ${itemNoun} name…`} value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              placeholder={`Enter ${itemNoun} name…`}
+              value={name}
+              maxLength={maxLength}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError(null);
+              }}
+            />
           </div>
           <ErrorText>{error}</ErrorText>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={!name.trim()}>
             + Add {itemNoun}
           </Button>
         </form>
@@ -396,7 +464,7 @@ function SimpleLookupTab({
           {filtered.map((item) => (
             <ListRow key={item.id}>
               {editingId === item.id ? (
-                <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
+                <Input value={editingName} maxLength={maxLength} onChange={(e) => setEditingName(e.target.value)} className="max-w-xs" />
               ) : (
                 <span className="text-sm text-slate-800">{item.name}</span>
               )}
@@ -450,17 +518,29 @@ function SimpleLookupTab({
           }}
         />
       )}
+      {confirmDeactivate && (
+        <ConfirmDialog
+          title={`Deactivate "${confirmDeactivate.name}"?`}
+          message={deactivateWarning}
+          confirmLabel="Deactivate"
+          danger
+          onConfirm={handleConfirmDeactivate}
+          onCancel={() => setConfirmDeactivate(null)}
+        />
+      )}
     </div>
   );
 }
 
 function SlaPlansTab({ items, onRefresh }: { items: SlaPlanItemFull[]; onRefresh: () => void }) {
+  const DEFAULT_HOURS = 72;
   const [name, setName] = useState('');
-  const [resolutionHours, setResolutionHours] = useState(72);
+  const [resolutionHours, setResolutionHours] = useState(DEFAULT_HOURS);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SlaPlanItemFull | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<SlaPlanItemFull | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -471,10 +551,14 @@ function SlaPlansTab({ items, onRefresh }: { items: SlaPlanItemFull[]; onRefresh
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('SLA plan name is required.');
+      return;
+    }
     try {
       await lookupsApi.createSlaPlan(name.trim(), resolutionHours);
       setName('');
+      setResolutionHours(DEFAULT_HOURS);
       onRefresh();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not add SLA plan.');
@@ -482,7 +566,18 @@ function SlaPlansTab({ items, onRefresh }: { items: SlaPlanItemFull[]; onRefresh
   }
 
   async function handleToggleActive(item: SlaPlanItemFull) {
-    await lookupsApi.updateSlaPlan(item.id, item.name, item.resolutionTimeHours, !item.isActive);
+    if (item.isActive) {
+      setConfirmDeactivate(item);
+      return;
+    }
+    await lookupsApi.updateSlaPlan(item.id, item.name, item.resolutionTimeHours, true);
+    onRefresh();
+  }
+
+  async function handleConfirmDeactivate() {
+    if (!confirmDeactivate) return;
+    await lookupsApi.updateSlaPlan(confirmDeactivate.id, confirmDeactivate.name, confirmDeactivate.resolutionTimeHours, false);
+    setConfirmDeactivate(null);
     onRefresh();
   }
 
@@ -505,14 +600,30 @@ function SlaPlansTab({ items, onRefresh }: { items: SlaPlanItemFull[]; onRefresh
         <form onSubmit={handleCreate} className="mt-4 space-y-3">
           <div>
             <Label>Name</Label>
-            <Input placeholder="e.g. Standard" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              placeholder="e.g. Standard"
+              value={name}
+              maxLength={SLA_NAME_MAX}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError(null);
+              }}
+            />
           </div>
           <div>
             <Label>Resolution time (hours)</Label>
-            <Input type="number" min={1} value={resolutionHours} onChange={(e) => setResolutionHours(Number(e.target.value))} />
+            <Input
+              type="number"
+              min={1}
+              value={resolutionHours}
+              onChange={(e) => {
+                setResolutionHours(Number(e.target.value));
+                setError(null);
+              }}
+            />
           </div>
           <ErrorText>{error}</ErrorText>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={!name.trim()}>
             + Add SLA Plan
           </Button>
         </form>
@@ -557,6 +668,61 @@ function SlaPlansTab({ items, onRefresh }: { items: SlaPlanItemFull[]; onRefresh
           }}
         />
       )}
+      {confirmDeactivate && (
+        <ConfirmDialog
+          title={`Deactivate "${confirmDeactivate.name}"?`}
+          message={`Tickets currently using "${confirmDeactivate.name}" keep it and are completely unaffected — nothing changes for existing tickets or statistics. This only removes it from the picker when opening a new ticket.`}
+          confirmLabel="Deactivate"
+          danger
+          onConfirm={handleConfirmDeactivate}
+          onCancel={() => setConfirmDeactivate(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CategoriesAndSlaTab({
+  categories,
+  refreshCategories,
+  slaPlans,
+  refreshSlaPlans,
+}: {
+  categories: LookupItemFull[];
+  refreshCategories: () => void;
+  slaPlans: SlaPlanItemFull[];
+  refreshSlaPlans: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3.5 py-2.5 text-xs text-blue-900">
+        <HelpBadge hint="SLA Plan = how many hours staff have to resolve a ticket (drives due dates and SLA-compliance reporting). Category = an internal label for what kind of issue it is (e.g. Hardware, Billing) — purely for organizing and reporting, no time attached. Both are staff/Admin-only; clients never see either." />
+        <span>
+          Not sure which to use? Hover the <b>?</b> for the difference between a Category and an SLA Plan. Neither is
+          ever visible to clients.
+        </span>
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Categories</h2>
+        <SimpleLookupTab
+          itemNoun="category"
+          pluralNoun="categories"
+          maxLength={CATEGORY_MAX}
+          items={categories}
+          onRefresh={refreshCategories}
+          onCreate={lookupsApi.createTicketCategory}
+          onUpdate={lookupsApi.updateTicketCategory}
+          onDelete={lookupsApi.deleteTicketCategory}
+          deleteWarning="This category will be permanently deleted. Any tickets currently using it simply lose their category reference — nothing else is affected."
+          deactivateWarning="Tickets currently using this category keep it and are completely unaffected — nothing changes for existing tickets or statistics. This only removes it from the picker when opening a new ticket."
+        />
+      </div>
+
+      <div className="border-t border-slate-200 pt-6">
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">SLA Plans</h2>
+        <SlaPlansTab items={slaPlans} onRefresh={refreshSlaPlans} />
+      </div>
     </div>
   );
 }
@@ -682,27 +848,24 @@ export default function SettingsPage() {
       {tab === 'helpTopics' && (
         <SimpleLookupTab
           itemNoun="help topic"
+          maxLength={HELP_TOPIC_MAX}
           items={helpTopics}
           onRefresh={refreshHelpTopics}
           onCreate={lookupsApi.createHelpTopic}
           onUpdate={lookupsApi.updateHelpTopic}
           onDelete={lookupsApi.deleteHelpTopic}
           deleteWarning="This help topic will be permanently deleted. Any tickets currently using it simply lose their help topic reference — nothing else is affected."
+          deactivateWarning="Tickets currently using this help topic keep it and are completely unaffected — nothing changes for existing tickets or statistics. This only removes it from the picker when opening a new ticket."
         />
       )}
-      {tab === 'categories' && (
-        <SimpleLookupTab
-          itemNoun="category"
-          pluralNoun="categories"
-          items={categories}
-          onRefresh={refreshCategories}
-          onCreate={lookupsApi.createTicketCategory}
-          onUpdate={lookupsApi.updateTicketCategory}
-          onDelete={lookupsApi.deleteTicketCategory}
-          deleteWarning="This category will be permanently deleted. Any tickets currently using it simply lose their category reference — nothing else is affected."
+      {tab === 'categoriesAndSla' && (
+        <CategoriesAndSlaTab
+          categories={categories}
+          refreshCategories={refreshCategories}
+          slaPlans={slaPlans}
+          refreshSlaPlans={refreshSlaPlans}
         />
       )}
-      {tab === 'slaPlans' && <SlaPlansTab items={slaPlans} onRefresh={refreshSlaPlans} />}
       {tab === 'notifications' && <NotificationsTab />}
     </div>
   );

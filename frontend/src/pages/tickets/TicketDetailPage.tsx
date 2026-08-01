@@ -80,10 +80,10 @@ export default function TicketDetailPage() {
             <InfoRow label="Help topic" value={ticket.helpTopicName} />
             <InfoRow label="Branch" value={ticket.departmentName} />
             <InfoRow label="Sub-branch" value={ticket.subBranchName} />
-            <InfoRow label="SLA plan" value={ticket.slaPlanName} />
             <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />
             <InfoRow label="Opened at" value={ticket.openedAtUtc ? format(new Date(ticket.openedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
             <InfoRow label="Closed at" value={ticket.closedAtUtc ? format(new Date(ticket.closedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
+            {isStaff && <InfoRow label="SLA plan" value={ticket.slaPlanName} />}
             {isStaff && <InfoRow label="Category" value={ticket.categoryName} />}
           </div>
           {isStaff && (
