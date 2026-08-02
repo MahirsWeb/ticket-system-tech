@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import { workTasksApi } from '../../api/workTasks';
@@ -27,6 +27,7 @@ export default function TasksPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
   const canManage = user?.role === 'Consultant' || user?.role === 'SupportAgent';
+  const canCreate = canManage || isAdmin;
 
   const [tasks, setTasks] = useState<WorkTaskListItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
@@ -35,7 +36,7 @@ export default function TasksPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<WorkTaskDetailDto | null>(null);
 
-  const [colleagues, setColleagues] = useState<{ id: string; name: string }[]>([]);
+  const [colleagues, setColleagues] = useState<{ id: string; name: string; departmentName: string | null }[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedToUserId, setAssignedToUserId] = useState('');
@@ -61,12 +62,26 @@ export default function TasksPage() {
   }, [departmentFilter, mineOnly]);
 
   useEffect(() => {
-    if (!canManage || !user?.departmentId) return;
+    if (!canCreate) return;
+    const scope = isAdmin ? undefined : user?.departmentId ?? undefined;
+    if (!isAdmin && !scope) return;
     Promise.all([
-      usersApi.list({ role: 'Consultant', departmentId: user.departmentId }),
-      usersApi.list({ role: 'SupportAgent', departmentId: user.departmentId }),
-    ]).then(([a, b]) => setColleagues([...a, ...b].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` }))));
-  }, [canManage, user?.departmentId]);
+      usersApi.list({ role: 'Consultant', departmentId: scope }),
+      usersApi.list({ role: 'SupportAgent', departmentId: scope }),
+    ]).then(([a, b]) =>
+      setColleagues([...a, ...b].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})`, departmentName: u.departmentName })))
+    );
+  }, [canCreate, isAdmin, user?.departmentId]);
+
+  const colleaguesByBranch = useMemo(() => {
+    const groups = new Map<string, { id: string; name: string; departmentName: string | null }[]>();
+    for (const c of colleagues) {
+      const key = c.departmentName ?? 'No branch';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(c);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [colleagues]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -112,12 +127,12 @@ export default function TasksPage() {
         <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
         <p className="mt-1 text-sm text-slate-500">
           {isAdmin
-            ? 'Read-only overview of tasks colleagues assign each other across all branches.'
+            ? 'You can create and assign tasks into any branch. Otherwise you only have read-only insight — reassigning or timing an existing task stays with the staff involved.'
             : 'Quick, informal work items you and your colleagues hand to each other alongside ticket work.'}
         </p>
       </div>
 
-      {canManage && (
+      {canCreate && (
         <Card className="p-5">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">New task</h2>
           <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -128,12 +143,16 @@ export default function TasksPage() {
             <div>
               <Label>Assign to</Label>
               <Select value={assignedToUserId} onChange={(e) => setAssignedToUserId(e.target.value)}>
-                <option value="">Choose a colleague (or yourself)…</option>
-                {colleagues.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.id === user?.id ? ' — me' : ''}
-                  </option>
+                <option value="">Choose a colleague{isAdmin ? '' : ' (or yourself)'}…</option>
+                {colleaguesByBranch.map(([branchName, group]) => (
+                  <optgroup key={branchName} label={branchName}>
+                    {group.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.id === user?.id ? ' — me' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </div>

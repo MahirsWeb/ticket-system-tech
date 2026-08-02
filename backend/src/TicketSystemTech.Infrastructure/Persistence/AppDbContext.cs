@@ -87,6 +87,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasIndex(t => t.CreatedAt);
             e.HasIndex(t => t.DepartmentId);
             e.HasIndex(t => t.SubBranchId);
+            // Matches the default list sort (most urgent first, then soonest due date) so large ticket
+            // volumes can be paged via an index scan instead of sorting the whole filtered set every request.
+            e.HasIndex(t => new { t.Priority, t.DueDateUtc });
 
             e.HasOne(t => t.Company).WithMany().HasForeignKey(t => t.CompanyId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.HelpTopic).WithMany().HasForeignKey(t => t.HelpTopicId).OnDelete(DeleteBehavior.SetNull);

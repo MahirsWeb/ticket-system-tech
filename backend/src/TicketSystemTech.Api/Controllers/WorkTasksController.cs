@@ -13,7 +13,8 @@ namespace TicketSystemTech.Api.Controllers;
 /// <summary>
 /// Informal work items ("tasks") that staff hand to each other alongside ticket work — e.g. "check the
 /// Bingo contract data". Employees create, assign and reassign these among themselves within their own
-/// branch; Admin has read-only visibility across all branches; clients have no access at all.
+/// branch. Admin can also create/assign one into any branch, but otherwise only has read-only visibility
+/// (no reassigning or timer control on tasks already in progress); clients have no access at all.
 /// </summary>
 [ApiController]
 [Route("api/work-tasks")]
@@ -35,25 +36,27 @@ public class WorkTasksController : ControllerBase
         _notificationPublisher = notificationPublisher;
     }
 
+    /// <summary>Staff hand tasks to a colleague in their own branch; Admin may create and assign one into any branch.</summary>
     [HttpPost]
-    [Authorize(Roles = StaffOnly)]
+    [Authorize(Roles = $"{StaffOnly},{nameof(UserRole.Admin)}")]
     public async Task<ActionResult<WorkTaskDetailDto>> Create(CreateWorkTaskRequest request)
     {
-        var departmentId = _currentUser.DepartmentId;
-        if (departmentId is null) return BadRequest(new { message = "Your account is not linked to a branch." });
-
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
             && (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent));
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
-        if (assignee.DepartmentId != departmentId) return BadRequest(new { message = "You can only assign tasks to colleagues in your own branch." });
+        if (assignee.DepartmentId is null) return BadRequest(new { message = "Assignee is not linked to a branch." });
 
+        if (_currentUser.Role != UserRole.Admin && assignee.DepartmentId != _currentUser.DepartmentId)
+            return BadRequest(new { message = "You can only assign tasks to colleagues in your own branch." });
+
+        var departmentId = assignee.DepartmentId.Value;
         var creator = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
 
         var task = new WorkTask
         {
             Title = request.Title,
             Description = request.Description,
-            DepartmentId = departmentId.Value,
+            DepartmentId = departmentId,
             CreatedByUserId = creator.Id,
             AssignedByUserId = creator.Id,
             AssignedToUserId = assignee.Id,

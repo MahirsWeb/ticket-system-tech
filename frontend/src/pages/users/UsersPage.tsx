@@ -155,15 +155,15 @@ export default function UsersPage() {
         <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
           <div>
             <Label>First name</Label>
-            <Input required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <Input required maxLength={25} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </div>
           <div>
             <Label>Last name</Label>
-            <Input required value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <Input required maxLength={30} value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </div>
           <div>
             <Label>Email</Label>
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input type="email" required maxLength={100} value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div>
             <Label>Account type</Label>
@@ -328,9 +328,12 @@ export default function UsersPage() {
                 )}
                 <td className="px-4 py-2">
                   {isAdmin ? (
-                    <button onClick={() => handleToggleActive(u)} className="hover:opacity-80">
+                    <div className="flex items-center gap-2">
                       <StatusPill active={u.isActive} />
-                    </button>
+                      <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(u)}>
+                        {u.isActive ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </div>
                   ) : (
                     <StatusPill active={u.isActive} />
                   )}
