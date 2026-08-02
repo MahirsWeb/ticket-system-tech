@@ -9,13 +9,13 @@ using TicketSystemTech.Domain.Enums;
 namespace TicketSystemTech.Api.Controllers;
 
 /// <summary>
-/// Lets staff (Consultant/SupportAgent only — not Admin) connect and triage their branch's shared mailbox
+/// Lets staff (Employee only — not Admin) connect and triage their branch's shared mailbox
 /// (e.g. servis@firma.ba) into tickets. Every staff member in the branch sees the same inbox and marks.
 /// Admin is intentionally excluded per product requirements.
 /// </summary>
 [ApiController]
 [Route("api/email-integration")]
-[Authorize(Roles = $"{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+[Authorize(Roles = nameof(UserRole.Employee))]
 public class EmailIntegrationController : ControllerBase
 {
     private readonly IEmailIntegrationService _emailService;

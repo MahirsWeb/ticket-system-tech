@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using TicketSystemTech.Domain.Entities;
 using TicketSystemTech.Domain.Enums;
 
 namespace TicketSystemTech.Infrastructure.Identity;
@@ -17,11 +18,15 @@ public class ApplicationUser : IdentityUser<Guid>
     /// <summary>Set only for Client users — the external company they belong to.</summary>
     public Guid? CompanyId { get; set; }
 
-    /// <summary>Set only for Consultant/SupportAgent users — the single branch (grana) they belong to. Admin is not scoped to a branch.</summary>
+    /// <summary>Set only for Employee users — the single branch (grana) they belong to. Admin is not scoped to a branch.</summary>
     public Guid? DepartmentId { get; set; }
 
     /// <summary>Required when their branch has sub-branches defined; picks which one this staff member belongs to.</summary>
     public Guid? SubBranchId { get; set; }
+
+    /// <summary>Optional, Employee-only — a purely informational label (e.g. "Consultant", "Seller") for reporting. Carries no permission difference.</summary>
+    public Guid? StaffPositionId { get; set; }
+    public StaffPosition? StaffPosition { get; set; }
 
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -60,7 +60,7 @@ public class TicketsController : ControllerBase
         await _db.SaveChangesAsync();
 
         // New tickets are unrouted (no branch yet), so every staff member across all branches is notified for triage.
-        var staff = await _db.Users.Where(u => (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent) && u.IsActive).ToListAsync();
+        var staff = await _db.Users.Where(u => u.Role == UserRole.Employee && u.IsActive).ToListAsync();
         foreach (var member in staff)
         {
             _db.Notifications.Add(new Notification
@@ -72,8 +72,7 @@ public class TicketsController : ControllerBase
             });
         }
         await _db.SaveChangesAsync();
-        await _notificationPublisher.PushToRoleAsync(UserRole.Consultant, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
-        await _notificationPublisher.PushToRoleAsync(UserRole.SupportAgent, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+        await _notificationPublisher.PushToRoleAsync(UserRole.Employee, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
 
         return Ok(await BuildDetailDto(ticket.Id));
     }
@@ -84,7 +83,7 @@ public class TicketsController : ControllerBase
     /// if the client had submitted it themselves.
     /// </summary>
     [HttpPost("on-behalf")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> CreateOnBehalf(CreateTicketOnBehalfRequest request)
     {
         var client = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == request.ClientEmail.ToUpperInvariant() && u.Role == UserRole.Client);
@@ -99,7 +98,7 @@ public class TicketsController : ControllerBase
         if (subBranchError is not null) return BadRequest(new { message = subBranchError });
 
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
-            && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
+            && u.Role == UserRole.Employee);
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (assignee.DepartmentId != request.DepartmentId)
             return BadRequest(new { message = "Assignee must belong to the selected branch." });
@@ -278,7 +277,7 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/open")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> OpenTicket(Guid id, OpenTicketRequest request)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -293,7 +292,7 @@ public class TicketsController : ControllerBase
         if (subBranchError is not null) return BadRequest(new { message = subBranchError });
 
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
-            && (u.Role == UserRole.SupportAgent || u.Role == UserRole.Consultant));
+            && u.Role == UserRole.Employee);
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (assignee.DepartmentId != request.DepartmentId)
             return BadRequest(new { message = "Assignee must belong to the selected branch." });
@@ -336,7 +335,7 @@ public class TicketsController : ControllerBase
 
     /// <summary>Moves an already-opened ticket to a different branch. Only staff with access to the ticket's current branch (or Admin) may do this. Notifies everyone in the destination branch.</summary>
     [HttpPost("{id:guid}/transfer-branch")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> TransferBranch(Guid id, TransferTicketBranchRequest request)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -368,7 +367,7 @@ public class TicketsController : ControllerBase
         await _db.SaveChangesAsync();
 
         var destinationStaff = await _db.Users
-            .Where(u => (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent) && u.DepartmentId == toDepartment.Id && u.IsActive)
+            .Where(u => u.Role == UserRole.Employee && u.DepartmentId == toDepartment.Id && u.IsActive)
             .ToListAsync();
 
         foreach (var member in destinationStaff)
@@ -395,7 +394,7 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/close")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> CloseTicket(Guid id, CloseTicketRequest request)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -437,7 +436,7 @@ public class TicketsController : ControllerBase
 
     /// <summary>Adds a co-assignee — e.g. a second person who helped resolve a different part of the same ticket.</summary>
     [HttpPost("{id:guid}/assignees")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> AddAssignee(Guid id, AddTicketAssigneeRequest request)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -446,7 +445,7 @@ public class TicketsController : ControllerBase
         if (ticket.Status is TicketStatus.New or TicketStatus.Closed)
             return BadRequest(new { message = "The ticket must be open to change its assignees." });
 
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId && (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent));
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId && u.Role == UserRole.Employee);
         if (user is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (user.DepartmentId != ticket.DepartmentId) return BadRequest(new { message = "Assignee must belong to this ticket's branch." });
         if (ticket.SubBranchId.HasValue && user.SubBranchId != ticket.SubBranchId)
@@ -476,7 +475,7 @@ public class TicketsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}/assignees/{userId:guid}")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> RemoveAssignee(Guid id, Guid userId)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -499,7 +498,7 @@ public class TicketsController : ControllerBase
 
     /// <summary>Manually logs when work on the ticket started/ended — not tied to any single assignee.</summary>
     [HttpPatch("{id:guid}/work-time")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> SetWorkTime(Guid id, SetTicketWorkTimeRequest request)
     {
         var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
@@ -579,7 +578,7 @@ public class TicketsController : ControllerBase
     {
         UserRole.Admin => true,
         // Branches are isolated: staff can access unrouted (New) tickets for triage, plus tickets routed to their own branch.
-        UserRole.Consultant or UserRole.SupportAgent => ticket.DepartmentId == null || ticket.DepartmentId == _currentUser.DepartmentId,
+        UserRole.Employee => ticket.DepartmentId == null || ticket.DepartmentId == _currentUser.DepartmentId,
         UserRole.Client => ticket.ClientId == _currentUser.UserId,
         _ => false
     };

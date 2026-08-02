@@ -26,7 +26,7 @@ function TaskStatusBadge({ status }: { status: string }) {
 export default function TasksPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
-  const canManage = user?.role === 'Consultant' || user?.role === 'SupportAgent';
+  const canManage = user?.role === 'Employee';
   const canCreate = canManage || isAdmin;
 
   const [tasks, setTasks] = useState<WorkTaskListItem[]>([]);
@@ -65,11 +65,8 @@ export default function TasksPage() {
     if (!canCreate) return;
     const scope = isAdmin ? undefined : user?.departmentId ?? undefined;
     if (!isAdmin && !scope) return;
-    Promise.all([
-      usersApi.list({ role: 'Consultant', departmentId: scope }),
-      usersApi.list({ role: 'SupportAgent', departmentId: scope }),
-    ]).then(([a, b]) =>
-      setColleagues([...a, ...b].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})`, departmentName: u.departmentName })))
+    usersApi.list({ role: 'Employee', departmentId: scope }).then((employees) =>
+      setColleagues(employees.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`, departmentName: u.departmentName })))
     );
   }, [canCreate, isAdmin, user?.departmentId]);
 

@@ -76,7 +76,7 @@ public class AttachmentsController : ControllerBase
     {
         Domain.Enums.UserRole.Admin => true,
         // Branches are isolated: staff can access unrouted (New) tickets for triage, plus tickets routed to their own branch.
-        Domain.Enums.UserRole.Consultant or Domain.Enums.UserRole.SupportAgent => ticket.DepartmentId == null || ticket.DepartmentId == _currentUser.DepartmentId,
+        Domain.Enums.UserRole.Employee => ticket.DepartmentId == null || ticket.DepartmentId == _currentUser.DepartmentId,
         Domain.Enums.UserRole.Client => ticket.ClientId == _currentUser.UserId,
         _ => false
     };

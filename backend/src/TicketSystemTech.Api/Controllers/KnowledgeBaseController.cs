@@ -11,7 +11,7 @@ namespace TicketSystemTech.Api.Controllers;
 
 [ApiController]
 [Route("api/knowledge-base")]
-[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
 public class KnowledgeBaseController : ControllerBase
 {
     private const string SystemInstruction =

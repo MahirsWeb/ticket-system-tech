@@ -14,10 +14,7 @@ export function TicketAssigneesPanel({ ticket, onChanged }: { ticket: TicketDeta
   useEffect(() => {
     if (!ticket.departmentId) return;
     const subBranchId = ticket.subBranchId ?? undefined;
-    Promise.all([
-      usersApi.list({ role: 'Consultant', departmentId: ticket.departmentId, subBranchId }),
-      usersApi.list({ role: 'SupportAgent', departmentId: ticket.departmentId, subBranchId }),
-    ]).then(([a, b]) => setCandidates([...a, ...b]));
+    usersApi.list({ role: 'Employee', departmentId: ticket.departmentId, subBranchId }).then(setCandidates);
   }, [ticket.departmentId, ticket.subBranchId]);
 
   const assignedIds = new Set(ticket.assignees.map((a) => a.userId));

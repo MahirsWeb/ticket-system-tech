@@ -16,9 +16,10 @@ public record CreateEmployeeRequest(
     [Required] string FirstName,
     [Required] string LastName,
     [Required, EmailAddress] string Email,
-    [Required] UserRole Role, // Admin, Consultant, SupportAgent
-    Guid? DepartmentId, // Required for Consultant/SupportAgent — the branch they belong to. Not applicable to Admin.
-    Guid? SubBranchId // Required if the selected branch has sub-branches defined.
+    [Required] UserRole Role, // Admin or Employee
+    Guid? DepartmentId, // Required for Employee — the branch they belong to. Not applicable to Admin.
+    Guid? SubBranchId, // Required if the selected branch has sub-branches defined.
+    Guid? StaffPositionId // Optional, Employee-only — a purely informational label, no permission difference.
 );
 
 public record CreateClientRequest(
@@ -60,5 +61,11 @@ public record UserListItem(
     Guid? DepartmentId,
     string? DepartmentName,
     Guid? SubBranchId,
-    string? SubBranchName
+    string? SubBranchName,
+    Guid? StaffPositionId,
+    string? StaffPositionName
+);
+
+public record SetStaffPositionRequest(
+    Guid? StaffPositionId
 );

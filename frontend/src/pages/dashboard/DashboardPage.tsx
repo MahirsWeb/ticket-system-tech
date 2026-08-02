@@ -112,9 +112,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isAdmin) lookupsApi.departments().then(setDepartments);
     const scope = isAdmin ? undefined : user?.departmentId ?? undefined;
-    Promise.all([usersApi.list({ role: 'Consultant', departmentId: scope }), usersApi.list({ role: 'SupportAgent', departmentId: scope })]).then(
-      ([a, b]) => setEmployees([...a, ...b])
-    );
+    usersApi.list({ role: 'Employee', departmentId: scope }).then(setEmployees);
   }, [isAdmin, user?.departmentId]);
 
   // Staff default to their own timeline; Admin must pick someone.

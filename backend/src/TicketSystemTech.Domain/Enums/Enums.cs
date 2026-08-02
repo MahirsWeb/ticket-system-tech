@@ -3,9 +3,8 @@ namespace TicketSystemTech.Domain.Enums;
 public enum UserRole
 {
     Admin = 0,
-    Consultant = 1,
-    SupportAgent = 2,
-    Client = 3
+    Employee = 1,
+    Client = 2
 }
 
 public enum TicketStatus

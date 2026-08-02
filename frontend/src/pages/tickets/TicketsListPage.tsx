@@ -23,7 +23,7 @@ const SORTABLE_COLUMNS: { key: string; label: string; className?: string }[] = [
 export default function TicketsListPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
-  const isStaff = user?.role === 'Admin' || user?.role === 'Consultant' || user?.role === 'SupportAgent';
+  const isStaff = user?.role === 'Admin' || user?.role === 'Employee';
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -41,9 +41,7 @@ export default function TicketsListPage() {
   useEffect(() => {
     if (!isStaff) return;
     if (isAdmin) lookupsApi.departments().then(setDepartments);
-    Promise.all([usersApi.list({ role: 'Consultant' }), usersApi.list({ role: 'SupportAgent' })]).then(([a, b]) =>
-      setEmployees([...a, ...b])
-    );
+    usersApi.list({ role: 'Employee' }).then(setEmployees);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStaff, isAdmin]);
 

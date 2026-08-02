@@ -1,4 +1,4 @@
-export type UserRole = 'Admin' | 'Consultant' | 'SupportAgent' | 'Client';
+export type UserRole = 'Admin' | 'Employee' | 'Client';
 
 export type TicketStatus = 'New' | 'Open' | 'InProgress' | 'Resolved' | 'Closed';
 
@@ -21,6 +21,8 @@ export interface UserSummary {
   departmentName: string | null;
   subBranchId: string | null;
   subBranchName: string | null;
+  staffPositionId: string | null;
+  staffPositionName: string | null;
 }
 
 export interface LoginResponse {
@@ -212,6 +214,8 @@ export interface UserListItemDto {
   departmentName: string | null;
   subBranchId: string | null;
   subBranchName: string | null;
+  staffPositionId: string | null;
+  staffPositionName: string | null;
 }
 
 export interface ReportSummaryDto {

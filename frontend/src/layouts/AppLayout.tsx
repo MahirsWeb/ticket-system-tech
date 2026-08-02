@@ -16,15 +16,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; ticketsDropdown?:
     { to: '/companies', label: 'Companies' },
     { to: '/settings', label: 'Settings' },
   ],
-  Consultant: [
-    { to: '/', label: 'Dashboard' },
-    { to: '/tickets', label: 'Tickets', ticketsDropdown: true },
-    { to: '/tasks', label: 'Task' },
-    { to: '/emails', label: 'Emails' },
-    { to: '/users', label: 'Clients' },
-    { to: '/companies', label: 'Companies' },
-  ],
-  SupportAgent: [
+  Employee: [
     { to: '/', label: 'Dashboard' },
     { to: '/tickets', label: 'Tickets', ticketsDropdown: true },
     { to: '/tasks', label: 'Task' },

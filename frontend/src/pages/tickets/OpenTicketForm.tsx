@@ -64,11 +64,8 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
       return;
     }
     setAssignedToUserId('');
-    Promise.all([
-      usersApi.list({ role: 'SupportAgent', departmentId, subBranchId: subBranchId || undefined }),
-      usersApi.list({ role: 'Consultant', departmentId, subBranchId: subBranchId || undefined }),
-    ]).then(([support, consultants]) => {
-      setAssignees([...support, ...consultants].map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` })));
+    usersApi.list({ role: 'Employee', departmentId, subBranchId: subBranchId || undefined }).then((employees) => {
+      setAssignees(employees.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}` })));
     });
   }, [departmentId, subBranchId]);
 

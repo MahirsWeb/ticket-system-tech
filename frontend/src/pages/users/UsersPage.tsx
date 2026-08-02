@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { useAuthStore } from '../../store/authStore';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
-import type { CompanyItemFull, CreatedUserResponse, DepartmentItemFull, SubBranchItemFull, UserListItemDto, UserRole } from '../../types';
+import type { CompanyItemFull, CreatedUserResponse, DepartmentItemFull, LookupItem, SubBranchItemFull, UserListItemDto, UserRole } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select, StatusPill } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TempPasswordModal } from './TempPasswordModal';
@@ -21,6 +21,7 @@ export default function UsersPage() {
   const [companies, setCompanies] = useState<CompanyItemFull[]>([]);
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [subBranchesByDept, setSubBranchesByDept] = useState<Record<string, SubBranchItemFull[]>>({});
+  const [staffPositions, setStaffPositions] = useState<LookupItem[]>([]);
   const [result, setResult] = useState<CreatedUserResponse | null>(null);
   const [confirmRegenerateFor, setConfirmRegenerateFor] = useState<UserListItemDto | null>(null);
   const [confirmDeactivateFor, setConfirmDeactivateFor] = useState<UserListItemDto | null>(null);
@@ -32,10 +33,11 @@ export default function UsersPage() {
   const [companyId, setCompanyId] = useState(preselectedCompanyId ?? '');
   const [departmentId, setDepartmentId] = useState('');
   const [subBranchId, setSubBranchId] = useState('');
+  const [staffPositionId, setStaffPositionId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const needsBranch = accountType === 'Consultant' || accountType === 'SupportAgent';
+  const needsBranch = accountType === 'Employee';
   const availableSubBranches = departmentId ? subBranchesByDept[departmentId] ?? [] : [];
 
   function refreshUsers() {
@@ -53,6 +55,7 @@ export default function UsersPage() {
     refreshUsers();
     lookupsApi.companies().then(setCompanies);
     lookupsApi.departments().then(setDepartments);
+    lookupsApi.staffPositions().then(setStaffPositions);
   }, []);
 
   useEffect(() => {
@@ -91,7 +94,8 @@ export default function UsersPage() {
           email,
           accountType,
           needsBranch ? departmentId : undefined,
-          needsBranch ? subBranchId || undefined : undefined
+          needsBranch ? subBranchId || undefined : undefined,
+          needsBranch ? staffPositionId || undefined : undefined
         );
       }
       setResult(created);
@@ -101,6 +105,7 @@ export default function UsersPage() {
       setCompanyId('');
       setDepartmentId('');
       setSubBranchId('');
+      setStaffPositionId('');
       refreshUsers();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not create the account.');
@@ -171,8 +176,7 @@ export default function UsersPage() {
               <option value="Client">Client</option>
               {isAdmin && (
                 <>
-                  <option value="Consultant">Consultant</option>
-                  <option value="SupportAgent">Support Agent</option>
+                  <option value="Employee">Employee</option>
                   <option value="Admin">Admin</option>
                 </>
               )}
@@ -217,6 +221,19 @@ export default function UsersPage() {
               </Select>
             </div>
           )}
+          {needsBranch && (
+            <div>
+              <Label>Position (optional)</Label>
+              <Select value={staffPositionId} onChange={(e) => setStaffPositionId(e.target.value)}>
+                <option value="">No position</option>
+                {staffPositions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div className="col-span-2">
             <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={loading}>
@@ -252,6 +269,7 @@ export default function UsersPage() {
               {activeTab === 'employees' ? (
                 <>
                   <th className="px-4 py-2">Role</th>
+                  <th className="px-4 py-2">Position</th>
                   <th className="px-4 py-2">Branch</th>
                   <th className="px-4 py-2">Sub-branch</th>
                 </>
@@ -277,7 +295,32 @@ export default function UsersPage() {
                   <>
                     <td className="px-4 py-2">{u.role}</td>
                     <td className="px-4 py-2">
-                      {isAdmin && (u.role === 'Consultant' || u.role === 'SupportAgent') ? (
+                      {isAdmin && u.role === 'Employee' ? (
+                        <Select
+                          value={u.staffPositionId ?? ''}
+                          onChange={async (e) => {
+                            try {
+                              await usersApi.setStaffPosition(u.id, e.target.value || null);
+                              refreshUsers();
+                            } catch (err: any) {
+                              setError(err?.response?.data?.message ?? "Could not update this user's position.");
+                            }
+                          }}
+                          className="w-36 py-1 text-xs"
+                        >
+                          <option value="">No position</option>
+                          {staffPositions.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </Select>
+                      ) : (
+                        u.staffPositionName ?? '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {isAdmin && u.role === 'Employee' ? (
                         <Select
                           value={u.departmentId ?? ''}
                           onChange={async (e) => {
@@ -302,7 +345,7 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="px-4 py-2">
-                      {isAdmin && u.departmentId && (u.role === 'Consultant' || u.role === 'SupportAgent') ? (
+                      {isAdmin && u.departmentId && u.role === 'Employee' ? (
                         <SubBranchInlineSelect
                           departmentId={u.departmentId}
                           value={u.subBranchId}
@@ -351,7 +394,7 @@ export default function UsersPage() {
             ))}
             {visibleUsers.length === 0 && (
               <tr>
-                <td colSpan={activeTab === 'employees' ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={activeTab === 'employees' ? 9 : 7} className="px-4 py-8 text-center text-slate-400">
                   No accounts here yet.
                 </td>
               </tr>

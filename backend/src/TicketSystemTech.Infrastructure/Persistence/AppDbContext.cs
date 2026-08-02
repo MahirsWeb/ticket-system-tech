@@ -14,6 +14,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<HelpTopic> HelpTopics => Set<HelpTopic>();
     public DbSet<TicketCategory> TicketCategories => Set<TicketCategory>();
+    public DbSet<StaffPosition> StaffPositions => Set<StaffPosition>();
     public DbSet<SlaPlan> SlaPlans => Set<SlaPlan>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
@@ -46,6 +47,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasIndex(u => u.SubBranchId);
             e.HasOne<Department>().WithMany().HasForeignKey(u => u.DepartmentId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<SubBranch>().WithMany().HasForeignKey(u => u.SubBranchId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(u => u.StaffPositionId);
+            e.HasOne(u => u.StaffPosition).WithMany().HasForeignKey(u => u.StaffPositionId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Company>(e =>
@@ -68,6 +71,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<TicketCategory>(e =>
         {
             e.Property(c => c.Name).HasMaxLength(150).IsRequired();
+        });
+
+        builder.Entity<StaffPosition>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(150).IsRequired();
         });
 
         builder.Entity<SlaPlan>(e =>

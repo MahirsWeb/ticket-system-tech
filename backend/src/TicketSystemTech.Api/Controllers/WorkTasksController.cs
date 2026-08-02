@@ -18,10 +18,10 @@ namespace TicketSystemTech.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/work-tasks")]
-[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
 public class WorkTasksController : ControllerBase
 {
-    private const string StaffOnly = $"{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}";
+    private const string StaffOnly = nameof(UserRole.Employee);
 
     private readonly AppDbContext _db;
     private readonly ICurrentUserService _currentUser;
@@ -42,7 +42,7 @@ public class WorkTasksController : ControllerBase
     public async Task<ActionResult<WorkTaskDetailDto>> Create(CreateWorkTaskRequest request)
     {
         var assignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
-            && (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent));
+            && u.Role == UserRole.Employee);
         if (assignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (assignee.DepartmentId is null) return BadRequest(new { message = "Assignee is not linked to a branch." });
 
@@ -126,7 +126,7 @@ public class WorkTasksController : ControllerBase
         if (!CanAccess(task)) return Forbid();
 
         var newAssignee = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.AssignedToUserId
-            && (u.Role == UserRole.Consultant || u.Role == UserRole.SupportAgent));
+            && u.Role == UserRole.Employee);
         if (newAssignee is null) return BadRequest(new { message = "Assignee must be a support agent or consultant." });
         if (newAssignee.DepartmentId != task.DepartmentId) return BadRequest(new { message = "You can only reassign tasks to colleagues in the same branch." });
 

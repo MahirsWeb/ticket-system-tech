@@ -43,7 +43,7 @@ export default function TicketDetailPage() {
   }
   if (!ticket || !user) return <p>Ticket not found.</p>;
 
-  const isStaff = user.role === 'Admin' || user.role === 'Consultant' || user.role === 'SupportAgent';
+  const isStaff = user.role === 'Admin' || user.role === 'Employee';
   const canOpen = isStaff && ticket.status === 'New';
   const canClose = isStaff && ticket.status !== 'New' && ticket.status !== 'Closed';
   const canTransfer = isStaff && ticket.status !== 'New';

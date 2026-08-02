@@ -42,14 +42,9 @@ export function TaskDetailPanel({
 
   useEffect(() => {
     if (!canManage) return;
-    Promise.all([
-      usersApi.list({ role: 'Consultant', departmentId: task.departmentId }),
-      usersApi.list({ role: 'SupportAgent', departmentId: task.departmentId }),
-    ]).then(([a, b]) =>
+    usersApi.list({ role: 'Employee', departmentId: task.departmentId }).then((employees) =>
       setCandidates(
-        [...a, ...b]
-          .filter((u) => u.id !== task.assignedToUserId)
-          .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.role})` }))
+        employees.filter((u) => u.id !== task.assignedToUserId).map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}` }))
       )
     );
   }, [canManage, task.departmentId, task.assignedToUserId]);

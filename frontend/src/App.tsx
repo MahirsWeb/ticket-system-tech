@@ -69,7 +69,7 @@ export default function App() {
             <Route
               path="/tasks"
               element={
-                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                <RequireRole roles={['Admin', 'Employee']}>
                   <TasksPage />
                 </RequireRole>
               }
@@ -77,7 +77,7 @@ export default function App() {
             <Route
               path="/users"
               element={
-                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                <RequireRole roles={['Admin', 'Employee']}>
                   <UsersPage />
                 </RequireRole>
               }
@@ -85,7 +85,7 @@ export default function App() {
             <Route
               path="/companies"
               element={
-                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                <RequireRole roles={['Admin', 'Employee']}>
                   <CompaniesPage />
                 </RequireRole>
               }
@@ -93,7 +93,7 @@ export default function App() {
             <Route
               path="/companies/:id"
               element={
-                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                <RequireRole roles={['Admin', 'Employee']}>
                   <CompanyDetailPage />
                 </RequireRole>
               }
@@ -101,7 +101,7 @@ export default function App() {
             <Route
               path="/tickets/new-on-behalf"
               element={
-                <RequireRole roles={['Admin', 'Consultant', 'SupportAgent']}>
+                <RequireRole roles={['Admin', 'Employee']}>
                   <NewTicketOnBehalfPage />
                 </RequireRole>
               }
@@ -117,7 +117,7 @@ export default function App() {
             <Route
               path="/emails"
               element={
-                <RequireRole roles={['Consultant', 'SupportAgent']}>
+                <RequireRole roles={['Employee']}>
                   <EmailsPage />
                 </RequireRole>
               }

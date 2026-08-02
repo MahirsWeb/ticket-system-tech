@@ -193,11 +193,14 @@ public class AuthController : ControllerBase
         string? subBranchName = user.SubBranchId.HasValue
             ? await _db.SubBranches.Where(s => s.Id == user.SubBranchId).Select(s => s.Name).FirstOrDefaultAsync()
             : null;
+        string? staffPositionName = user.StaffPositionId.HasValue
+            ? await _db.StaffPositions.Where(p => p.Id == user.StaffPositionId).Select(p => p.Name).FirstOrDefaultAsync()
+            : null;
 
         return new UserSummary(
             user.Id, user.FirstName, user.LastName, user.Email!, user.Role.ToString(),
             user.CompanyId, user.PhoneNumber, user.PhoneNumberPrompted, user.DepartmentId, departmentName,
-            user.SubBranchId, subBranchName);
+            user.SubBranchId, subBranchName, user.StaffPositionId, staffPositionName);
     }
 
     /// <summary>Tells every Admin that a user has just accepted their invite (set their own password for the first time).</summary>

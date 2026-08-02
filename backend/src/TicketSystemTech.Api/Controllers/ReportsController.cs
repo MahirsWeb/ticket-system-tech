@@ -14,7 +14,7 @@ namespace TicketSystemTech.Api.Controllers;
 
 [ApiController]
 [Route("api/reports")]
-[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Consultant)},{nameof(UserRole.SupportAgent)}")]
+[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
 public class ReportsController : ControllerBase
 {
     private const string InsightsSystemInstruction =
