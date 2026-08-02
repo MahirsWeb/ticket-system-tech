@@ -261,7 +261,8 @@ export default function UsersPage() {
       )}
 
       <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
               <th className="px-4 py-2">Name</th>
@@ -401,6 +402,7 @@ export default function UsersPage() {
             )}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {result && <TempPasswordModal result={result} onClose={() => setResult(null)} />}
