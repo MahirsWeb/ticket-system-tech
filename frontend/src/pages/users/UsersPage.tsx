@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useAuthStore } from '../../store/authStore';
@@ -25,6 +25,7 @@ export default function UsersPage() {
   const [confirmRegenerateFor, setConfirmRegenerateFor] = useState<UserListItemDto | null>(null);
   const [confirmDeactivateFor, setConfirmDeactivateFor] = useState<UserListItemDto | null>(null);
   const [editingUser, setEditingUser] = useState<UserListItemDto | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -289,77 +290,89 @@ export default function UsersPage() {
       )}
 
       <Card className="overflow-hidden">
-        <table className="w-full table-fixed text-sm">
+        <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
-              <th className="w-[16%] px-4 py-2">Name</th>
-              <th className={activeTab === 'employees' ? 'w-[20%] px-4 py-2' : 'w-[22%] px-4 py-2'}>Email</th>
-              {activeTab === 'employees' ? (
-                <>
-                  <th className="w-[8%] px-4 py-2">Role</th>
-                  <th className="w-[12%] px-4 py-2">Branch</th>
-                  <th className="w-[12%] px-4 py-2">Sub-branch</th>
-                </>
-              ) : (
-                <>
-                  <th className="w-[18%] px-4 py-2">Company</th>
-                  <th className="w-[10%] px-4 py-2">Created</th>
-                </>
-              )}
-              <th className="w-[14%] px-4 py-2">Status</th>
-              <th className="w-[8%] px-4 py-2">Verified</th>
-              <th className={activeTab === 'employees' ? 'w-[10%] px-4 py-2' : 'w-[12%] px-4 py-2'}>Actions</th>
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Email</th>
+              <th className="px-4 py-2">{activeTab === 'employees' ? 'Branch' : 'Company'}</th>
+              <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {visibleUsers.map((u) => (
-              <tr key={u.id} className="border-t border-slate-100 align-top">
-                <td className="break-words px-4 py-2">
-                  {u.firstName} {u.lastName}
-                </td>
-                <td className="break-words px-4 py-2">{u.email}</td>
-                {activeTab === 'employees' ? (
-                  <>
-                    <td className="px-4 py-2">{u.role}</td>
-                    <td className="break-words px-4 py-2 text-slate-500">{u.departmentName ?? '—'}</td>
-                    <td className="break-words px-4 py-2 text-slate-500">{u.subBranchName ?? '—'}</td>
-                  </>
-                ) : (
-                  <>
-                    <td className="break-words px-4 py-2">{u.companyName ?? '—'}</td>
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{format(new Date(u.createdAtUtc), 'dd.MM.yyyy')}</td>
-                  </>
-                )}
-                <td className="px-4 py-2">
-                  {isAdmin ? (
-                    <div className="flex flex-wrap items-center gap-2">
+            {visibleUsers.map((u) => {
+              const isExpanded = expandedId === u.id;
+              return (
+                <Fragment key={u.id}>
+                  <tr className="border-t border-slate-100">
+                    <td className="px-4 py-2">
+                      {u.firstName} {u.lastName}
+                    </td>
+                    <td className="px-4 py-2">{u.email}</td>
+                    <td className="px-4 py-2 text-slate-500">{(activeTab === 'employees' ? u.departmentName : u.companyName) ?? '—'}</td>
+                    <td className="px-4 py-2">
                       <StatusPill active={u.isActive} />
-                      <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(u)}>
-                        {u.isActive ? 'Deactivate' : 'Reactivate'}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        className="text-xs font-medium text-blue-700 hover:underline"
+                        onClick={() => setExpandedId(isExpanded ? null : u.id)}
+                      >
+                        {isExpanded ? 'Hide info' : 'More info'}
                       </button>
-                    </div>
-                  ) : (
-                    <StatusPill active={u.isActive} />
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-t border-slate-100 bg-slate-50/60">
+                      <td colSpan={5} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-xs">
+                          {activeTab === 'employees' ? (
+                            <>
+                              <span>
+                                <span className="text-slate-400">Role:</span> <span className="text-slate-700">{u.role}</span>
+                              </span>
+                              <span>
+                                <span className="text-slate-400">Sub-branch:</span>{' '}
+                                <span className="text-slate-700">{u.subBranchName ?? '—'}</span>
+                              </span>
+                            </>
+                          ) : (
+                            <span>
+                              <span className="text-slate-400">Created:</span>{' '}
+                              <span className="text-slate-700">{format(new Date(u.createdAtUtc), 'dd.MM.yyyy')}</span>
+                            </span>
+                          )}
+                          <span>
+                            <span className="text-slate-400">Email verified:</span>{' '}
+                            <span className="text-slate-700">{u.emailConfirmed ? 'Yes' : 'No'}</span>
+                          </span>
+
+                          <span className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2">
+                            {isAdmin && (
+                              <button className="font-medium text-slate-500 hover:underline" onClick={() => handleToggleActive(u)}>
+                                {u.isActive ? 'Deactivate' : 'Reactivate'}
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button className="font-medium text-blue-700 hover:underline" onClick={() => startEdit(u)}>
+                                Edit
+                              </button>
+                            )}
+                            <button className="font-medium text-blue-700 hover:underline" onClick={() => setConfirmRegenerateFor(u)}>
+                              Regenerate temp password
+                            </button>
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </td>
-                <td className="px-4 py-2">{u.emailConfirmed ? 'Yes' : 'No'}</td>
-                <td className="px-4 py-2">
-                  <div className="flex flex-col items-start gap-1">
-                    {isAdmin && (
-                      <button className="text-xs font-medium text-blue-700 hover:underline" onClick={() => startEdit(u)}>
-                        Edit
-                      </button>
-                    )}
-                    <button className="text-xs font-medium text-blue-700 hover:underline" onClick={() => setConfirmRegenerateFor(u)}>
-                      Regenerate temp password
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                </Fragment>
+              );
+            })}
             {visibleUsers.length === 0 && (
               <tr>
-                <td colSpan={activeTab === 'employees' ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                   No accounts here yet.
                 </td>
               </tr>
