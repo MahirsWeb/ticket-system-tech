@@ -24,6 +24,7 @@ export default function UsersPage() {
   const [result, setResult] = useState<CreatedUserResponse | null>(null);
   const [confirmRegenerateFor, setConfirmRegenerateFor] = useState<UserListItemDto | null>(null);
   const [confirmDeactivateFor, setConfirmDeactivateFor] = useState<UserListItemDto | null>(null);
+  const [editingUser, setEditingUser] = useState<UserListItemDto | null>(null);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -57,53 +58,83 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (needsBranch && departmentId) getSubBranches(departmentId);
-    setSubBranchId('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departmentId, needsBranch]);
 
-  async function handleCreate(e: React.FormEvent) {
+  function resetForm() {
+    setEditingUser(null);
+    setFirstName('');
+    setLastName('');
+    setEmail('');
+    setAccountType('Client');
+    setCompanyId('');
+    setDepartmentId('');
+    setSubBranchId('');
+    setError(null);
+  }
+
+  function startEdit(u: UserListItemDto) {
+    setEditingUser(u);
+    setFirstName(u.firstName);
+    setLastName(u.lastName);
+    setEmail(u.email);
+    setAccountType(u.role as 'Client' | UserRole);
+    setCompanyId(u.companyId ?? '');
+    setDepartmentId(u.departmentId ?? '');
+    setSubBranchId(u.subBranchId ?? '');
+    setError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (accountType === 'Client' && !companyId) {
+      setError('Please select a company.');
+      return;
+    }
+    if (needsBranch && !departmentId) {
+      setError('Please select a branch.');
+      return;
+    }
+    if (needsBranch && availableSubBranches.length > 0 && !subBranchId) {
+      setError('Please select a sub-branch.');
+      return;
+    }
+
     setLoading(true);
     try {
-      let created: CreatedUserResponse;
-      if (accountType === 'Client') {
-        if (!companyId) {
-          setError('Please select a company.');
-          setLoading(false);
-          return;
-        }
-        created = await usersApi.createClient(firstName, lastName, email, companyId);
-      } else {
-        if (needsBranch && !departmentId) {
-          setError('Please select a branch.');
-          setLoading(false);
-          return;
-        }
-        if (needsBranch && availableSubBranches.length > 0 && !subBranchId) {
-          setError('Please select a sub-branch.');
-          setLoading(false);
-          return;
-        }
-        created = await usersApi.createEmployee(
+      if (editingUser) {
+        await usersApi.updateUser(editingUser.id, {
           firstName,
           lastName,
-          email,
-          accountType,
-          needsBranch ? departmentId : undefined,
-          needsBranch ? subBranchId || undefined : undefined
-        );
+          role: accountType as UserRole,
+          companyId: accountType === 'Client' ? companyId : undefined,
+          departmentId: needsBranch ? departmentId : undefined,
+          subBranchId: needsBranch ? subBranchId || undefined : undefined,
+        });
+        resetForm();
+        refreshUsers();
+      } else {
+        let created: CreatedUserResponse;
+        if (accountType === 'Client') {
+          created = await usersApi.createClient(firstName, lastName, email, companyId);
+        } else {
+          created = await usersApi.createEmployee(
+            firstName,
+            lastName,
+            email,
+            accountType,
+            needsBranch ? departmentId : undefined,
+            needsBranch ? subBranchId || undefined : undefined
+          );
+        }
+        setResult(created);
+        resetForm();
+        refreshUsers();
       }
-      setResult(created);
-      setFirstName('');
-      setLastName('');
-      setEmail('');
-      setCompanyId('');
-      setDepartmentId('');
-      setSubBranchId('');
-      refreshUsers();
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Could not create the account.');
+      setError(err?.response?.data?.message ?? `Could not ${editingUser ? 'update' : 'create'} the account.`);
     } finally {
       setLoading(false);
     }
@@ -151,8 +182,10 @@ export default function UsersPage() {
       <h1 className="text-xl font-bold text-slate-900">{isAdmin ? 'Users' : 'Clients'}</h1>
 
       <Card className="p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Create account</h2>
-        <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">
+          {editingUser ? `Edit account — ${editingUser.firstName} ${editingUser.lastName}` : 'Create account'}
+        </h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
           <div>
             <Label>First name</Label>
             <Input required maxLength={25} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -162,8 +195,8 @@ export default function UsersPage() {
             <Input required maxLength={30} value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </div>
           <div>
-            <Label>Email</Label>
-            <Input type="email" required maxLength={100} value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Label>Email{editingUser ? ' (cannot be changed)' : ''}</Label>
+            <Input type="email" required maxLength={100} value={email} disabled={!!editingUser} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div>
             <Label>Account type</Label>
@@ -193,7 +226,13 @@ export default function UsersPage() {
           {needsBranch && (
             <div>
               <Label>Branch</Label>
-              <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <Select
+                value={departmentId}
+                onChange={(e) => {
+                  setDepartmentId(e.target.value);
+                  setSubBranchId('');
+                }}
+              >
                 <option value="">Select a branch…</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -218,9 +257,16 @@ export default function UsersPage() {
           )}
           <div className="col-span-2">
             <ErrorText>{error}</ErrorText>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating…' : 'Create account'}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={loading}>
+                {loading ? (editingUser ? 'Saving…' : 'Creating…') : editingUser ? 'Save changes' : 'Create account'}
+              </Button>
+              {editingUser && (
+                <Button type="button" variant="secondary" onClick={resetForm}>
+                  Cancel
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </Card>
@@ -243,8 +289,7 @@ export default function UsersPage() {
       )}
 
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
               <th className="whitespace-nowrap px-4 py-2">Name</th>
@@ -276,49 +321,8 @@ export default function UsersPage() {
                 {activeTab === 'employees' ? (
                   <>
                     <td className="whitespace-nowrap px-4 py-2">{u.role}</td>
-                    <td className="whitespace-nowrap px-4 py-2">
-                      {isAdmin && u.role === 'Employee' ? (
-                        <Select
-                          value={u.departmentId ?? ''}
-                          onChange={async (e) => {
-                            try {
-                              await usersApi.setBranch(u.id, e.target.value || null, null);
-                              refreshUsers();
-                            } catch (err: any) {
-                              setError(err?.response?.data?.message ?? "Could not update this user's branch.");
-                            }
-                          }}
-                          className="w-40 py-1 text-xs"
-                        >
-                          <option value="">No branch</option>
-                          {departments.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                        </Select>
-                      ) : (
-                        u.departmentName ?? '—'
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2">
-                      {isAdmin && u.departmentId && u.role === 'Employee' ? (
-                        <SubBranchInlineSelect
-                          departmentId={u.departmentId}
-                          value={u.subBranchId}
-                          onChange={async (newSubBranchId) => {
-                            try {
-                              await usersApi.setBranch(u.id, u.departmentId, newSubBranchId);
-                              refreshUsers();
-                            } catch (err: any) {
-                              setError(err?.response?.data?.message ?? "Could not update this user's sub-branch.");
-                            }
-                          }}
-                        />
-                      ) : (
-                        u.subBranchName ?? '—'
-                      )}
-                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{u.departmentName ?? '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{u.subBranchName ?? '—'}</td>
                   </>
                 ) : (
                   <>
@@ -340,12 +344,16 @@ export default function UsersPage() {
                 </td>
                 <td className="whitespace-nowrap px-4 py-2">{u.emailConfirmed ? 'Yes' : 'No'}</td>
                 <td className="whitespace-nowrap px-4 py-2 text-right">
-                  <button
-                    className="text-xs font-medium text-blue-700 hover:underline"
-                    onClick={() => setConfirmRegenerateFor(u)}
-                  >
-                    Regenerate temp password
-                  </button>
+                  <div className="flex justify-end gap-3">
+                    {isAdmin && (
+                      <button className="text-xs font-medium text-blue-700 hover:underline" onClick={() => startEdit(u)}>
+                        Edit
+                      </button>
+                    )}
+                    <button className="text-xs font-medium text-blue-700 hover:underline" onClick={() => setConfirmRegenerateFor(u)}>
+                      Regenerate temp password
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -358,7 +366,6 @@ export default function UsersPage() {
             )}
           </tbody>
         </table>
-        </div>
       </Card>
 
       {result && <TempPasswordModal result={result} onClose={() => setResult(null)} />}
@@ -383,35 +390,5 @@ export default function UsersPage() {
         />
       )}
     </div>
-  );
-}
-
-function SubBranchInlineSelect({
-  departmentId,
-  value,
-  onChange,
-}: {
-  departmentId: string;
-  value: string | null;
-  onChange: (subBranchId: string | null) => void;
-}) {
-  const [options, setOptions] = useState<SubBranchItemFull[] | null>(null);
-
-  useEffect(() => {
-    lookupsApi.subBranches(departmentId).then(setOptions);
-  }, [departmentId]);
-
-  if (options === null) return <span className="text-xs text-slate-400">…</span>;
-  if (options.length === 0) return <span className="text-xs text-slate-400">—</span>;
-
-  return (
-    <Select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} className="w-36 py-1 text-xs">
-      <option value="">No sub-branch</option>
-      {options.map((s) => (
-        <option key={s.id} value={s.id}>
-          {s.name}
-        </option>
-      ))}
-    </Select>
   );
 }

@@ -3,11 +3,6 @@ using TicketSystemTech.Domain.Enums;
 
 namespace TicketSystemTech.Api.Contracts;
 
-public record SetUserBranchRequest(
-    Guid? DepartmentId,
-    Guid? SubBranchId
-);
-
 public record SetUserActiveRequest(
     bool IsActive
 );
@@ -26,6 +21,16 @@ public record CreateClientRequest(
     [Required] string LastName,
     [Required, EmailAddress] string Email,
     [Required] Guid CompanyId
+);
+
+/// <summary>Admin-only edit of an existing account. Email is intentionally excluded — it's the login identity.</summary>
+public record UpdateUserRequest(
+    [Required] string FirstName,
+    [Required] string LastName,
+    [Required] UserRole Role,
+    Guid? CompanyId, // Required when Role is Client.
+    Guid? DepartmentId, // Required when Role is Employee.
+    Guid? SubBranchId // Required if the selected branch has sub-branches defined.
 );
 
 public record CreatedUserResponse(

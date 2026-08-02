@@ -127,28 +127,50 @@ public class UsersController : ControllerBase
         return Ok(new CreatedUserResponse(user.Id, user.Email!, tempPassword, user.TemporaryPasswordExpiresAtUtc.Value));
     }
 
-    /// <summary>Admin-only: (re)assign the branch (and sub-branch, if applicable) an Employee belongs to.</summary>
-    [HttpPatch("{id:guid}/department")]
+    /// <summary>
+    /// Admin-only: updates an existing account's editable profile fields — everything except email
+    /// (email is the login identity and isn't changeable after creation).
+    /// </summary>
+    [HttpPut("{id:guid}")]
     [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<IActionResult> SetBranch(Guid id, SetUserBranchRequest request)
+    public async Task<IActionResult> UpdateUser(Guid id, UpdateUserRequest request)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());
         if (user is null) return NotFound();
-        if (user.Role != UserRole.Employee)
-            return BadRequest(new { message = "Only Employee accounts belong to a branch." });
 
+        if (user.Id == _currentUser.UserId && request.Role != user.Role)
+            return BadRequest(new { message = "You cannot change your own account type." });
+
+        Guid? companyId = null;
+        Guid? departmentId = null;
         Guid? subBranchId = null;
-        if (request.DepartmentId.HasValue)
+
+        if (request.Role == UserRole.Client)
         {
+            if (request.CompanyId is null)
+                return BadRequest(new { message = "A company must be selected for Client accounts." });
+            var companyExists = await _db.Companies.AnyAsync(c => c.Id == request.CompanyId.Value);
+            if (!companyExists) return BadRequest(new { message = "Company not found." });
+            companyId = request.CompanyId;
+        }
+        else if (request.Role == UserRole.Employee)
+        {
+            if (request.DepartmentId is null)
+                return BadRequest(new { message = "A branch must be selected for Employee accounts." });
             var departmentExists = await _db.Departments.AnyAsync(d => d.Id == request.DepartmentId.Value && d.IsActive);
             if (!departmentExists) return BadRequest(new { message = "Branch not found." });
 
             var subBranchError = await ValidateSubBranchAsync(request.DepartmentId.Value, request.SubBranchId);
             if (subBranchError is not null) return BadRequest(new { message = subBranchError });
+            departmentId = request.DepartmentId;
             subBranchId = request.SubBranchId;
         }
 
-        user.DepartmentId = request.DepartmentId;
+        user.FirstName = request.FirstName;
+        user.LastName = request.LastName;
+        user.Role = request.Role;
+        user.CompanyId = companyId;
+        user.DepartmentId = departmentId;
         user.SubBranchId = subBranchId;
         await _userManager.UpdateAsync(user);
         return Ok();

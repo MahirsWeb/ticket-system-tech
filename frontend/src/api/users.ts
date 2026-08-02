@@ -26,8 +26,20 @@ export const usersApi = {
   list: (params?: { role?: UserRole; companyId?: string; departmentId?: string; subBranchId?: string }) =>
     apiClient.get<UserListItemDto[]>('/api/users', { params }).then((r) => r.data),
 
-  setBranch: (userId: string, departmentId: string | null, subBranchId: string | null) =>
-    apiClient.patch(`/api/users/${userId}/department`, { departmentId, subBranchId }).then((r) => r.data),
+  updateUser: (
+    userId: string,
+    data: { firstName: string; lastName: string; role: UserRole; companyId?: string; departmentId?: string; subBranchId?: string }
+  ) =>
+    apiClient
+      .put(`/api/users/${userId}`, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role,
+        companyId: data.companyId || null,
+        departmentId: data.departmentId || null,
+        subBranchId: data.subBranchId || null,
+      })
+      .then((r) => r.data),
 
   setActive: (userId: string, isActive: boolean) =>
     apiClient.patch(`/api/users/${userId}/active`, { isActive }).then((r) => r.data),
