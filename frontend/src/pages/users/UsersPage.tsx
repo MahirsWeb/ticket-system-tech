@@ -292,23 +292,23 @@ export default function UsersPage() {
         <table className="w-full table-fixed text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Email</th>
+              <th className="w-[16%] px-4 py-2">Name</th>
+              <th className={activeTab === 'employees' ? 'w-[20%] px-4 py-2' : 'w-[22%] px-4 py-2'}>Email</th>
               {activeTab === 'employees' ? (
                 <>
-                  <th className="px-4 py-2">Role</th>
-                  <th className="px-4 py-2">Branch</th>
-                  <th className="px-4 py-2">Sub-branch</th>
+                  <th className="w-[8%] px-4 py-2">Role</th>
+                  <th className="w-[12%] px-4 py-2">Branch</th>
+                  <th className="w-[12%] px-4 py-2">Sub-branch</th>
                 </>
               ) : (
                 <>
-                  <th className="px-4 py-2">Company</th>
-                  <th className="px-4 py-2">Created</th>
+                  <th className="w-[18%] px-4 py-2">Company</th>
+                  <th className="w-[10%] px-4 py-2">Created</th>
                 </>
               )}
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Verified</th>
-              <th className="px-4 py-2">Actions</th>
+              <th className="w-[14%] px-4 py-2">Status</th>
+              <th className="w-[8%] px-4 py-2">Verified</th>
+              <th className={activeTab === 'employees' ? 'w-[10%] px-4 py-2' : 'w-[12%] px-4 py-2'}>Actions</th>
             </tr>
           </thead>
           <tbody>

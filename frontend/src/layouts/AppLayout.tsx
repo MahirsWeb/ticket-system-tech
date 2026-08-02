@@ -107,7 +107,7 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-slate-200">
       <header className="border-b border-slate-300 bg-[#1a2b4c]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <div className="text-lg font-bold text-white">Ticket System Tech</div>
           <div className="flex items-center gap-4">
             <div className="hidden text-right text-xs text-slate-300 sm:block">
@@ -129,7 +129,7 @@ export default function AppLayout() {
           </div>
         </div>
 
-        <nav className="mx-auto flex max-w-5xl gap-1 px-4">
+        <nav className="mx-auto flex max-w-7xl gap-1 px-4">
           {nav.map((item) =>
             item.ticketsDropdown ? (
               <TicketsNavItem key={item.to} to={item.to} label={item.label} />
@@ -144,7 +144,7 @@ export default function AppLayout() {
 
       {user.role === 'Client' && <PhoneNumberBanner />}
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <Outlet />
       </main>
     </div>
