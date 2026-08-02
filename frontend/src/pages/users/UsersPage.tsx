@@ -289,50 +289,50 @@ export default function UsersPage() {
       )}
 
       <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
-              <th className="whitespace-nowrap px-4 py-2">Name</th>
-              <th className="whitespace-nowrap px-4 py-2">Email</th>
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Email</th>
               {activeTab === 'employees' ? (
                 <>
-                  <th className="whitespace-nowrap px-4 py-2">Role</th>
-                  <th className="whitespace-nowrap px-4 py-2">Branch</th>
-                  <th className="whitespace-nowrap px-4 py-2">Sub-branch</th>
+                  <th className="px-4 py-2">Role</th>
+                  <th className="px-4 py-2">Branch</th>
+                  <th className="px-4 py-2">Sub-branch</th>
                 </>
               ) : (
                 <>
-                  <th className="whitespace-nowrap px-4 py-2">Company</th>
-                  <th className="whitespace-nowrap px-4 py-2">Created</th>
+                  <th className="px-4 py-2">Company</th>
+                  <th className="px-4 py-2">Created</th>
                 </>
               )}
-              <th className="whitespace-nowrap px-4 py-2">Status</th>
-              <th className="whitespace-nowrap px-4 py-2">Email verified</th>
-              <th className="whitespace-nowrap px-4 py-2"></th>
+              <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2">Verified</th>
+              <th className="px-4 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {visibleUsers.map((u) => (
-              <tr key={u.id} className="border-t border-slate-100">
-                <td className="whitespace-nowrap px-4 py-2">
+              <tr key={u.id} className="border-t border-slate-100 align-top">
+                <td className="break-words px-4 py-2">
                   {u.firstName} {u.lastName}
                 </td>
-                <td className="whitespace-nowrap px-4 py-2">{u.email}</td>
+                <td className="break-words px-4 py-2">{u.email}</td>
                 {activeTab === 'employees' ? (
                   <>
-                    <td className="whitespace-nowrap px-4 py-2">{u.role}</td>
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{u.departmentName ?? '—'}</td>
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{u.subBranchName ?? '—'}</td>
+                    <td className="px-4 py-2">{u.role}</td>
+                    <td className="break-words px-4 py-2 text-slate-500">{u.departmentName ?? '—'}</td>
+                    <td className="break-words px-4 py-2 text-slate-500">{u.subBranchName ?? '—'}</td>
                   </>
                 ) : (
                   <>
-                    <td className="whitespace-nowrap px-4 py-2">{u.companyName ?? '—'}</td>
+                    <td className="break-words px-4 py-2">{u.companyName ?? '—'}</td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-500">{format(new Date(u.createdAtUtc), 'dd.MM.yyyy')}</td>
                   </>
                 )}
-                <td className="whitespace-nowrap px-4 py-2">
+                <td className="px-4 py-2">
                   {isAdmin ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusPill active={u.isActive} />
                       <button className="text-xs text-slate-500 hover:underline" onClick={() => handleToggleActive(u)}>
                         {u.isActive ? 'Deactivate' : 'Reactivate'}
@@ -342,9 +342,9 @@ export default function UsersPage() {
                     <StatusPill active={u.isActive} />
                   )}
                 </td>
-                <td className="whitespace-nowrap px-4 py-2">{u.emailConfirmed ? 'Yes' : 'No'}</td>
-                <td className="whitespace-nowrap px-4 py-2 text-right">
-                  <div className="flex justify-end gap-3">
+                <td className="px-4 py-2">{u.emailConfirmed ? 'Yes' : 'No'}</td>
+                <td className="px-4 py-2">
+                  <div className="flex flex-col items-start gap-1">
                     {isAdmin && (
                       <button className="text-xs font-medium text-blue-700 hover:underline" onClick={() => startEdit(u)}>
                         Edit
