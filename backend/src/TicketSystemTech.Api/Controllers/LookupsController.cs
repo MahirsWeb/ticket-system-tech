@@ -297,61 +297,6 @@ public class LookupsController : ControllerBase
         return NoContent();
     }
 
-    // ---------------- Staff Positions ----------------
-    // Purely informational label an Admin can attach to an Employee account (e.g. "Consultant", "Seller")
-    // for reporting only — every Employee has identical rights regardless of position.
-
-    [HttpGet("staff-positions")]
-    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
-    public async Task<ActionResult<List<object>>> GetStaffPositions([FromQuery] bool includeInactive = false)
-    {
-        var isAdmin = User.IsInRole(nameof(UserRole.Admin));
-        var query = _db.StaffPositions.AsQueryable();
-        if (!includeInactive || !isAdmin) query = query.Where(p => p.IsActive);
-
-        if (isAdmin)
-        {
-            var full = await query.OrderBy(p => p.Name).Select(p => new LookupItemFull(p.Id, p.Name, p.IsActive)).ToListAsync();
-            return Ok(full);
-        }
-        var items = await query.OrderBy(p => p.Name).Select(p => new LookupItem(p.Id, p.Name)).ToListAsync();
-        return Ok(items);
-    }
-
-    [HttpPost("staff-positions")]
-    [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<ActionResult<LookupItemFull>> CreateStaffPosition(NameOnlyRequest request)
-    {
-        var entity = new StaffPosition { Name = request.Name };
-        _db.StaffPositions.Add(entity);
-        await _db.SaveChangesAsync();
-        return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
-    }
-
-    [HttpPut("staff-positions/{id:guid}")]
-    [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<ActionResult<LookupItemFull>> UpdateStaffPosition(Guid id, UpdateNameRequest request)
-    {
-        var entity = await _db.StaffPositions.FindAsync(id);
-        if (entity is null) return NotFound();
-        entity.Name = request.Name;
-        entity.IsActive = request.IsActive;
-        await _db.SaveChangesAsync();
-        return Ok(new LookupItemFull(entity.Id, entity.Name, entity.IsActive));
-    }
-
-    /// <summary>Employees with this position have it cleared to NULL by the database, not deleted.</summary>
-    [HttpDelete("staff-positions/{id:guid}")]
-    [Authorize(Roles = nameof(UserRole.Admin))]
-    public async Task<IActionResult> DeleteStaffPosition(Guid id)
-    {
-        var entity = await _db.StaffPositions.FindAsync(id);
-        if (entity is null) return NotFound();
-        _db.StaffPositions.Remove(entity);
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
-
     // ---------------- SLA Plans ----------------
 
     [HttpGet("sla-plans")]

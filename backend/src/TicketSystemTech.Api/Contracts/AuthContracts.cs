@@ -26,9 +26,7 @@ public record UserSummary(
     Guid? DepartmentId,
     string? DepartmentName,
     Guid? SubBranchId,
-    string? SubBranchName,
-    Guid? StaffPositionId,
-    string? StaffPositionName
+    string? SubBranchName
 );
 
 public record SetNewPasswordRequest(

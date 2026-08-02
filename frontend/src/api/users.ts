@@ -5,15 +5,7 @@ export const usersApi = {
   lookupByEmail: (email: string) =>
     apiClient.get<ClientLookupResult>('/api/users/lookup-by-email', { params: { email } }).then((r) => r.data),
 
-  createEmployee: (
-    firstName: string,
-    lastName: string,
-    email: string,
-    role: UserRole,
-    departmentId?: string,
-    subBranchId?: string,
-    staffPositionId?: string
-  ) =>
+  createEmployee: (firstName: string, lastName: string, email: string, role: UserRole, departmentId?: string, subBranchId?: string) =>
     apiClient
       .post<CreatedUserResponse>('/api/users/employees', {
         firstName,
@@ -22,7 +14,6 @@ export const usersApi = {
         role,
         departmentId: departmentId || null,
         subBranchId: subBranchId || null,
-        staffPositionId: staffPositionId || null,
       })
       .then((r) => r.data),
 
@@ -37,9 +28,6 @@ export const usersApi = {
 
   setBranch: (userId: string, departmentId: string | null, subBranchId: string | null) =>
     apiClient.patch(`/api/users/${userId}/department`, { departmentId, subBranchId }).then((r) => r.data),
-
-  setStaffPosition: (userId: string, staffPositionId: string | null) =>
-    apiClient.patch(`/api/users/${userId}/staff-position`, { staffPositionId }).then((r) => r.data),
 
   setActive: (userId: string, isActive: boolean) =>
     apiClient.patch(`/api/users/${userId}/active`, { isActive }).then((r) => r.data),

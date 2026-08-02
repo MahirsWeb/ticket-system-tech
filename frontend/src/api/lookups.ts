@@ -55,13 +55,4 @@ export const lookupsApi = {
   updateSlaPlan: (id: string, name: string, resolutionTimeHours: number, isActive: boolean) =>
     apiClient.put<SlaPlanItemFull>(`/api/sla-plans/${id}`, { name, resolutionTimeHours, isActive }).then((r) => r.data),
   deleteSlaPlan: (id: string) => apiClient.delete(`/api/sla-plans/${id}`).then((r) => r.data),
-
-  // Staff positions — purely informational label on Employee accounts (e.g. "Consultant", "Seller"), no permission meaning.
-  staffPositions: () => apiClient.get<LookupItem[]>('/api/staff-positions').then((r) => r.data),
-  staffPositionsAdmin: () =>
-    apiClient.get<LookupItemFull[]>('/api/staff-positions', { params: { includeInactive: true } }).then((r) => r.data),
-  createStaffPosition: (name: string) => apiClient.post<LookupItemFull>('/api/staff-positions', { name }).then((r) => r.data),
-  updateStaffPosition: (id: string, name: string, isActive: boolean) =>
-    apiClient.put<LookupItemFull>(`/api/staff-positions/${id}`, { name, isActive }).then((r) => r.data),
-  deleteStaffPosition: (id: string) => apiClient.delete(`/api/staff-positions/${id}`).then((r) => r.data),
 };

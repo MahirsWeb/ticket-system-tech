@@ -11,7 +11,6 @@ const EMAIL_MAX = 50;
 const HELP_TOPIC_MAX = 75;
 const CATEGORY_MAX = 70;
 const SLA_NAME_MAX = 70;
-const STAFF_POSITION_MAX = 70;
 
 type TabKey = 'branches' | 'helpTopics' | 'categoriesAndSla' | 'notifications';
 
@@ -780,7 +779,6 @@ export default function SettingsPage() {
   const [helpTopics, setHelpTopics] = useState<LookupItemFull[]>([]);
   const [categories, setCategories] = useState<LookupItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItemFull[]>([]);
-  const [staffPositions, setStaffPositions] = useState<LookupItemFull[]>([]);
 
   function refreshDepartments() {
     lookupsApi.departmentsAdmin().then(setDepartments);
@@ -794,16 +792,12 @@ export default function SettingsPage() {
   function refreshSlaPlans() {
     lookupsApi.slaPlansAdmin().then(setSlaPlans);
   }
-  function refreshStaffPositions() {
-    lookupsApi.staffPositionsAdmin().then(setStaffPositions);
-  }
 
   useEffect(() => {
     refreshDepartments();
     refreshHelpTopics();
     refreshCategories();
     refreshSlaPlans();
-    refreshStaffPositions();
   }, []);
 
   return (
@@ -831,30 +825,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {tab === 'branches' && (
-        <div className="space-y-6">
-          <BranchesTab items={departments} onRefresh={refreshDepartments} />
-          <div className="border-t border-slate-200 pt-6">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Staff Positions</h2>
-            <p className="mb-4 text-xs text-slate-400">
-              Purely informational job-title label Admin can attach to an Employee account (e.g. "Consultant", "Seller") for
-              reporting — every Employee has identical rights regardless of position.
-            </p>
-            <SimpleLookupTab
-              itemNoun="position"
-              pluralNoun="positions"
-              maxLength={STAFF_POSITION_MAX}
-              items={staffPositions}
-              onRefresh={refreshStaffPositions}
-              onCreate={lookupsApi.createStaffPosition}
-              onUpdate={lookupsApi.updateStaffPosition}
-              onDelete={lookupsApi.deleteStaffPosition}
-              deleteWarning="This position will be permanently deleted. Employees currently assigned to it simply lose that label — nothing else about their account is affected."
-              deactivateWarning="Employees currently assigned to this position keep it and are completely unaffected — nothing changes for their account. This only removes it from the picker when creating or editing an employee."
-            />
-          </div>
-        </div>
-      )}
+      {tab === 'branches' && <BranchesTab items={departments} onRefresh={refreshDepartments} />}
       {tab === 'helpTopics' && (
         <SimpleLookupTab
           itemNoun="help topic"
