@@ -225,6 +225,34 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Fetches a single account's profile — used by the user detail page.</summary>
+    [HttpGet("{id:guid}")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
+    public async Task<ActionResult<UserListItem>> GetById(Guid id)
+    {
+        var u = await _userManager.FindByIdAsync(id.ToString());
+        if (u is null) return NotFound();
+
+        // Branches are isolated: non-admin staff may only look up staff from their own branch. Clients are shared across branches.
+        if (_currentUser.Role != UserRole.Admin && u.Role != UserRole.Client && u.DepartmentId != _currentUser.DepartmentId)
+            return NotFound();
+
+        string? companyName = u.CompanyId.HasValue
+            ? await _db.Companies.Where(c => c.Id == u.CompanyId).Select(c => c.Name).FirstOrDefaultAsync()
+            : null;
+        string? departmentName = u.DepartmentId.HasValue
+            ? await _db.Departments.Where(d => d.Id == u.DepartmentId).Select(d => d.Name).FirstOrDefaultAsync()
+            : null;
+        string? subBranchName = u.SubBranchId.HasValue
+            ? await _db.SubBranches.Where(s => s.Id == u.SubBranchId).Select(s => s.Name).FirstOrDefaultAsync()
+            : null;
+
+        return Ok(new UserListItem(
+            u.Id, u.FirstName, u.LastName, u.Email!, u.Role.ToString(),
+            u.CompanyId, companyName, u.PhoneNumber, u.IsActive, u.EmailConfirmed, u.CreatedAtUtc,
+            u.DepartmentId, departmentName, u.SubBranchId, subBranchName));
+    }
+
     /// <summary>
     /// Looks up a Client account by email so staff can pre-fill their info when opening a ticket
     /// on behalf of a client who called/reported the issue verbally (not through the client portal).

@@ -1,12 +1,10 @@
-import { Fragment, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { format } from 'date-fns';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
 import type { CompanyItemFull, CreatedUserResponse, DepartmentItemFull, SubBranchItemFull, UserListItemDto, UserRole } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select, StatusPill } from '../../components/ui';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TempPasswordModal } from './TempPasswordModal';
 
 export default function UsersPage() {
@@ -22,10 +20,6 @@ export default function UsersPage() {
   const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [subBranchesByDept, setSubBranchesByDept] = useState<Record<string, SubBranchItemFull[]>>({});
   const [result, setResult] = useState<CreatedUserResponse | null>(null);
-  const [confirmRegenerateFor, setConfirmRegenerateFor] = useState<UserListItemDto | null>(null);
-  const [confirmDeactivateFor, setConfirmDeactivateFor] = useState<UserListItemDto | null>(null);
-  const [editingUser, setEditingUser] = useState<UserListItemDto | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -62,31 +56,7 @@ export default function UsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departmentId, needsBranch]);
 
-  function resetForm() {
-    setEditingUser(null);
-    setFirstName('');
-    setLastName('');
-    setEmail('');
-    setAccountType('Client');
-    setCompanyId('');
-    setDepartmentId('');
-    setSubBranchId('');
-    setError(null);
-  }
-
-  function startEdit(u: UserListItemDto) {
-    setEditingUser(u);
-    setFirstName(u.firstName);
-    setLastName(u.lastName);
-    setEmail(u.email);
-    setAccountType(u.role as 'Client' | UserRole);
-    setCompanyId(u.companyId ?? '');
-    setDepartmentId(u.departmentId ?? '');
-    setSubBranchId(u.subBranchId ?? '');
-    setError(null);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -105,71 +75,31 @@ export default function UsersPage() {
 
     setLoading(true);
     try {
-      if (editingUser) {
-        await usersApi.updateUser(editingUser.id, {
+      let created: CreatedUserResponse;
+      if (accountType === 'Client') {
+        created = await usersApi.createClient(firstName, lastName, email, companyId);
+      } else {
+        created = await usersApi.createEmployee(
           firstName,
           lastName,
-          role: accountType as UserRole,
-          companyId: accountType === 'Client' ? companyId : undefined,
-          departmentId: needsBranch ? departmentId : undefined,
-          subBranchId: needsBranch ? subBranchId || undefined : undefined,
-        });
-        resetForm();
-        refreshUsers();
-      } else {
-        let created: CreatedUserResponse;
-        if (accountType === 'Client') {
-          created = await usersApi.createClient(firstName, lastName, email, companyId);
-        } else {
-          created = await usersApi.createEmployee(
-            firstName,
-            lastName,
-            email,
-            accountType,
-            needsBranch ? departmentId : undefined,
-            needsBranch ? subBranchId || undefined : undefined
-          );
-        }
-        setResult(created);
-        resetForm();
-        refreshUsers();
+          email,
+          accountType,
+          needsBranch ? departmentId : undefined,
+          needsBranch ? subBranchId || undefined : undefined
+        );
       }
+      setResult(created);
+      setFirstName('');
+      setLastName('');
+      setEmail('');
+      setCompanyId('');
+      setDepartmentId('');
+      setSubBranchId('');
+      refreshUsers();
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? `Could not ${editingUser ? 'update' : 'create'} the account.`);
+      setError(err?.response?.data?.message ?? 'Could not create the account.');
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleRegenerateConfirmed() {
-    if (!confirmRegenerateFor) return;
-    const target = confirmRegenerateFor;
-    setConfirmRegenerateFor(null);
-    setResult(await usersApi.regenerateTempPassword(target.id));
-  }
-
-  async function handleToggleActive(u: UserListItemDto) {
-    if (u.isActive) {
-      setConfirmDeactivateFor(u);
-      return;
-    }
-    try {
-      await usersApi.setActive(u.id, true);
-      refreshUsers();
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Could not reactivate this account.');
-    }
-  }
-
-  async function handleConfirmDeactivate() {
-    if (!confirmDeactivateFor) return;
-    const target = confirmDeactivateFor;
-    setConfirmDeactivateFor(null);
-    try {
-      await usersApi.setActive(target.id, false);
-      refreshUsers();
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Could not deactivate this account.');
     }
   }
 
@@ -183,10 +113,8 @@ export default function UsersPage() {
       <h1 className="text-xl font-bold text-slate-900">{isAdmin ? 'Users' : 'Clients'}</h1>
 
       <Card className="p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">
-          {editingUser ? `Edit account — ${editingUser.firstName} ${editingUser.lastName}` : 'Create account'}
-        </h2>
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Create account</h2>
+        <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
           <div>
             <Label>First name</Label>
             <Input required maxLength={25} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -196,8 +124,8 @@ export default function UsersPage() {
             <Input required maxLength={30} value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </div>
           <div>
-            <Label>Email{editingUser ? ' (cannot be changed)' : ''}</Label>
-            <Input type="email" required maxLength={100} value={email} disabled={!!editingUser} onChange={(e) => setEmail(e.target.value)} />
+            <Label>Email</Label>
+            <Input type="email" required maxLength={100} value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div>
             <Label>Account type</Label>
@@ -258,16 +186,9 @@ export default function UsersPage() {
           )}
           <div className="col-span-2">
             <ErrorText>{error}</ErrorText>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={loading}>
-                {loading ? (editingUser ? 'Saving…' : 'Creating…') : editingUser ? 'Save changes' : 'Create account'}
-              </Button>
-              {editingUser && (
-                <Button type="button" variant="secondary" onClick={resetForm}>
-                  Cancel
-                </Button>
-              )}
-            </div>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Creating…' : 'Create account'}
+            </Button>
           </div>
         </form>
       </Card>
@@ -297,82 +218,26 @@ export default function UsersPage() {
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">{activeTab === 'employees' ? 'Branch' : 'Company'}</th>
               <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {visibleUsers.map((u) => {
-              const isExpanded = expandedId === u.id;
-              return (
-                <Fragment key={u.id}>
-                  <tr className="border-t border-slate-100">
-                    <td className="px-4 py-2">
-                      {u.firstName} {u.lastName}
-                    </td>
-                    <td className="px-4 py-2">{u.email}</td>
-                    <td className="px-4 py-2 text-slate-500">{(activeTab === 'employees' ? u.departmentName : u.companyName) ?? '—'}</td>
-                    <td className="px-4 py-2">
-                      <StatusPill active={u.isActive} />
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        className="text-xs font-medium text-blue-700 hover:underline"
-                        onClick={() => setExpandedId(isExpanded ? null : u.id)}
-                      >
-                        {isExpanded ? 'Hide info' : 'More info'}
-                      </button>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr className="border-t border-slate-100 bg-slate-50/60">
-                      <td colSpan={5} className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-xs">
-                          {activeTab === 'employees' ? (
-                            <>
-                              <span>
-                                <span className="text-slate-400">Role:</span> <span className="text-slate-700">{u.role}</span>
-                              </span>
-                              <span>
-                                <span className="text-slate-400">Sub-branch:</span>{' '}
-                                <span className="text-slate-700">{u.subBranchName ?? '—'}</span>
-                              </span>
-                            </>
-                          ) : (
-                            <span>
-                              <span className="text-slate-400">Created:</span>{' '}
-                              <span className="text-slate-700">{format(new Date(u.createdAtUtc), 'dd.MM.yyyy')}</span>
-                            </span>
-                          )}
-                          <span>
-                            <span className="text-slate-400">Email verified:</span>{' '}
-                            <span className="text-slate-700">{u.emailConfirmed ? 'Yes' : 'No'}</span>
-                          </span>
-
-                          <span className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2">
-                            {isAdmin && (
-                              <button className="font-medium text-slate-500 hover:underline" onClick={() => handleToggleActive(u)}>
-                                {u.isActive ? 'Deactivate' : 'Reactivate'}
-                              </button>
-                            )}
-                            {isAdmin && (
-                              <button className="font-medium text-blue-700 hover:underline" onClick={() => startEdit(u)}>
-                                Edit
-                              </button>
-                            )}
-                            <button className="font-medium text-blue-700 hover:underline" onClick={() => setConfirmRegenerateFor(u)}>
-                              Regenerate temp password
-                            </button>
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
+            {visibleUsers.map((u) => (
+              <tr key={u.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-2">
+                  <Link to={`/users/${u.id}`} className="font-medium text-blue-700 hover:underline">
+                    {u.firstName} {u.lastName}
+                  </Link>
+                </td>
+                <td className="px-4 py-2">{u.email}</td>
+                <td className="px-4 py-2 text-slate-500">{(activeTab === 'employees' ? u.departmentName : u.companyName) ?? '—'}</td>
+                <td className="px-4 py-2">
+                  <StatusPill active={u.isActive} />
+                </td>
+              </tr>
+            ))}
             {visibleUsers.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
                   No accounts here yet.
                 </td>
               </tr>
@@ -382,26 +247,6 @@ export default function UsersPage() {
       </Card>
 
       {result && <TempPasswordModal result={result} onClose={() => setResult(null)} />}
-      {confirmRegenerateFor && (
-        <ConfirmDialog
-          title="Regenerate temporary password?"
-          message={`This immediately invalidates ${confirmRegenerateFor.firstName} ${confirmRegenerateFor.lastName}'s current password and emails them a new temporary one. Are you sure?`}
-          confirmLabel="Regenerate"
-          danger
-          onConfirm={handleRegenerateConfirmed}
-          onCancel={() => setConfirmRegenerateFor(null)}
-        />
-      )}
-      {confirmDeactivateFor && (
-        <ConfirmDialog
-          title="Deactivate this account?"
-          message={`${confirmDeactivateFor.firstName} ${confirmDeactivateFor.lastName} will no longer be able to log in and will stop receiving any emails from the app. You can reactivate this account at any time.`}
-          confirmLabel="Deactivate"
-          danger
-          onConfirm={handleConfirmDeactivate}
-          onCancel={() => setConfirmDeactivateFor(null)}
-        />
-      )}
     </div>
   );
 }

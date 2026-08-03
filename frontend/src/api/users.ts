@@ -26,6 +26,8 @@ export const usersApi = {
   list: (params?: { role?: UserRole; companyId?: string; departmentId?: string; subBranchId?: string }) =>
     apiClient.get<UserListItemDto[]>('/api/users', { params }).then((r) => r.data),
 
+  getById: (userId: string) => apiClient.get<UserListItemDto>(`/api/users/${userId}`).then((r) => r.data),
+
   updateUser: (
     userId: string,
     data: { firstName: string; lastName: string; role: UserRole; companyId?: string; departmentId?: string; subBranchId?: string }
