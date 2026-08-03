@@ -212,6 +212,8 @@ export interface UserListItemDto {
   departmentName: string | null;
   subBranchId: string | null;
   subBranchName: string | null;
+  profilePictureUrl: string | null;
+  lastLoginAtUtc: string | null;
 }
 
 export interface ReportSummaryDto {

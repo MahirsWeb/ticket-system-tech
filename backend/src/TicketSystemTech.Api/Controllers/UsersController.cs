@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ public class UsersController : ControllerBase
     private readonly TemporaryPasswordOptions _tempPasswordOptions;
     private readonly IEmailSender _emailSender;
     private readonly FrontendOptions _frontendOptions;
+    private readonly IFileStorage _fileStorage;
 
     public UsersController(
         UserManager<ApplicationUser> userManager,
@@ -33,7 +35,8 @@ public class UsersController : ControllerBase
         ITemporaryPasswordGenerator tempPasswordGenerator,
         IOptions<TemporaryPasswordOptions> tempPasswordOptions,
         IEmailSender emailSender,
-        IOptions<FrontendOptions> frontendOptions)
+        IOptions<FrontendOptions> frontendOptions,
+        IFileStorage fileStorage)
     {
         _userManager = userManager;
         _db = db;
@@ -42,6 +45,7 @@ public class UsersController : ControllerBase
         _tempPasswordOptions = tempPasswordOptions.Value;
         _emailSender = emailSender;
         _frontendOptions = frontendOptions.Value;
+        _fileStorage = fileStorage;
     }
 
     /// <summary>Admin-only: create Admin/Employee accounts.</summary>
@@ -220,7 +224,8 @@ public class UsersController : ControllerBase
             u.CompanyId, u.CompanyId.HasValue && companyNames.TryGetValue(u.CompanyId.Value, out var n) ? n : null,
             u.PhoneNumber, u.IsActive, u.EmailConfirmed, u.CreatedAtUtc,
             u.DepartmentId, u.DepartmentId.HasValue && departmentNames.TryGetValue(u.DepartmentId.Value, out var dn) ? dn : null,
-            u.SubBranchId, u.SubBranchId.HasValue && subBranchNames.TryGetValue(u.SubBranchId.Value, out var sn) ? sn : null)).ToList();
+            u.SubBranchId, u.SubBranchId.HasValue && subBranchNames.TryGetValue(u.SubBranchId.Value, out var sn) ? sn : null,
+            u.ProfilePictureUrl, u.LastLoginAtUtc)).ToList();
 
         return Ok(result);
     }
@@ -250,7 +255,37 @@ public class UsersController : ControllerBase
         return Ok(new UserListItem(
             u.Id, u.FirstName, u.LastName, u.Email!, u.Role.ToString(),
             u.CompanyId, companyName, u.PhoneNumber, u.IsActive, u.EmailConfirmed, u.CreatedAtUtc,
-            u.DepartmentId, departmentName, u.SubBranchId, subBranchName));
+            u.DepartmentId, departmentName, u.SubBranchId, subBranchName,
+            u.ProfilePictureUrl, u.LastLoginAtUtc));
+    }
+
+    private const long MaxProfilePictureSizeBytes = 5 * 1024 * 1024; // 5 MB
+    private static readonly HashSet<string> AllowedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp"
+    };
+
+    /// <summary>Uploads a profile picture. A user can set their own; Admin can set anyone's.</summary>
+    [HttpPost("{id:guid}/profile-picture")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> UploadProfilePicture(Guid id, [FromForm] IFormFile file)
+    {
+        if (_currentUser.UserId != id && _currentUser.Role != UserRole.Admin) return Forbid();
+
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user is null) return NotFound();
+
+        if (file is null || file.Length == 0) return BadRequest(new { message = "No file was provided." });
+        var extension = Path.GetExtension(file.FileName);
+        if (!AllowedImageExtensions.Contains(extension)) return BadRequest(new { message = $"File type '{extension}' is not allowed." });
+        if (file.Length > MaxProfilePictureSizeBytes) return BadRequest(new { message = "Image exceeds the 5 MB limit." });
+
+        await using var stream = file.OpenReadStream();
+        var url = await _fileStorage.SaveAsync(file.FileName, file.ContentType, stream);
+
+        user.ProfilePictureUrl = url;
+        await _userManager.UpdateAsync(user);
+        return Ok(new { profilePictureUrl = url });
     }
 
     /// <summary>

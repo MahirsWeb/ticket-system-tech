@@ -9,6 +9,7 @@ import { ticketsApi } from '../../api/tickets';
 import type { CompanyItemFull, CreatedUserResponse, DepartmentItemFull, SubBranchItemFull, TicketListItem, UserListItemDto, UserRole } from '../../types';
 import { Button, Card, ErrorText, Input, Label, PriorityBadge, Select, Spinner, StatusBadge, StatusPill } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { UserAvatar } from '../../components/UserAvatar';
 import { TempPasswordModal } from './TempPasswordModal';
 
 export default function UserDetailPage() {
@@ -41,6 +42,8 @@ export default function UserDetailPage() {
   const [result, setResult] = useState<CreatedUserResponse | null>(null);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   const needsBranch = accountType === 'Employee';
   const availableSubBranches = departmentId ? subBranchesByDept[departmentId] ?? [] : [];
@@ -159,6 +162,20 @@ export default function UserDetailPage() {
     loadUser();
   }
 
+  async function handleAvatarUpload(file: File) {
+    if (!id) return;
+    setAvatarError(null);
+    setAvatarUploading(true);
+    try {
+      await usersApi.uploadProfilePicture(id, file);
+      loadUser();
+    } catch (err: any) {
+      setAvatarError(err?.response?.data?.message ?? 'Could not upload the picture.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -167,6 +184,13 @@ export default function UserDetailPage() {
     );
   }
   if (notFound || !target) return <p>User not found.</p>;
+
+  const canEditAvatar = isAdmin || currentUser?.id === target.id;
+  const orgLabel = target.role === 'Client' ? 'Organization' : 'Branch';
+  const orgValue =
+    target.role === 'Client'
+      ? target.companyName ?? '—'
+      : [target.departmentName, target.subBranchName].filter(Boolean).join(' / ') || '—';
 
   return (
     <div className="space-y-6">
@@ -184,36 +208,48 @@ export default function UserDetailPage() {
       </div>
 
       <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start gap-5">
             <div>
-              <div className="text-xs font-semibold uppercase text-slate-400">Email</div>
-              <div className="text-slate-800">{target.email}</div>
+              <UserAvatar
+                url={target.profilePictureUrl}
+                editable={canEditAvatar}
+                uploading={avatarUploading}
+                onUpload={handleAvatarUpload}
+              />
+              {avatarError && <p className="mt-1 max-w-[6rem] text-[11px] text-red-600">{avatarError}</p>}
             </div>
-            {target.role === 'Client' ? (
-              <div>
-                <div className="text-xs font-semibold uppercase text-slate-400">Company</div>
-                <div className="text-slate-800">{target.companyName ?? '—'}</div>
+            <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-sm sm:grid-cols-2">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-400">Email</div>
+                  <div className="text-slate-800">{target.email}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-400">{orgLabel}</div>
+                  <div className="text-slate-800">{orgValue}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-400">Email verified</div>
+                  <div className="text-slate-800">{target.emailConfirmed ? 'Yes' : 'No'}</div>
+                </div>
               </div>
-            ) : (
-              <>
+              <div className="space-y-3">
                 <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Branch</div>
-                  <div className="text-slate-800">{target.departmentName ?? '—'}</div>
+                  <div className="text-xs font-semibold uppercase text-slate-400">Status</div>
+                  <StatusPill active={target.isActive} />
                 </div>
                 <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Sub-branch</div>
-                  <div className="text-slate-800">{target.subBranchName ?? '—'}</div>
+                  <div className="text-xs font-semibold uppercase text-slate-400">Created</div>
+                  <div className="text-slate-800">{format(new Date(target.createdAtUtc), 'dd.MM.yyyy')}</div>
                 </div>
-              </>
-            )}
-            <div>
-              <div className="text-xs font-semibold uppercase text-slate-400">Created</div>
-              <div className="text-slate-800">{format(new Date(target.createdAtUtc), 'dd.MM.yyyy')}</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase text-slate-400">Email verified</div>
-              <div className="text-slate-800">{target.emailConfirmed ? 'Yes' : 'No'}</div>
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-400">Last login</div>
+                  <div className="text-slate-800">
+                    {target.lastLoginAtUtc ? format(new Date(target.lastLoginAtUtc), 'dd.MM.yyyy HH:mm') : 'Never'}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           {isAdmin && (

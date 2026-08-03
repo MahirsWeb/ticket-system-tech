@@ -65,5 +65,7 @@ public record UserListItem(
     Guid? DepartmentId,
     string? DepartmentName,
     Guid? SubBranchId,
-    string? SubBranchName
+    string? SubBranchName,
+    string? ProfilePictureUrl,
+    DateTime? LastLoginAtUtc
 );

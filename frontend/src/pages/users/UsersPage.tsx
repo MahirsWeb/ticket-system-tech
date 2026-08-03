@@ -6,6 +6,7 @@ import { lookupsApi } from '../../api/lookups';
 import type { CompanyItemFull, CreatedUserResponse, DepartmentItemFull, SubBranchItemFull, UserListItemDto, UserRole } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select, StatusPill } from '../../components/ui';
 import { TempPasswordModal } from './TempPasswordModal';
+import CompaniesPage from './CompaniesPage';
 
 export default function UsersPage() {
   const user = useAuthStore((s) => s.user);
@@ -13,6 +14,7 @@ export default function UsersPage() {
   const canSeeEmployees = isAdmin; // non-admin staff only manage clients here
   const [searchParams] = useSearchParams();
   const preselectedCompanyId = searchParams.get('companyId');
+  const [section, setSection] = useState<'users' | 'companies'>(searchParams.get('tab') === 'companies' ? 'companies' : 'users');
 
   const [tab, setTab] = useState<'clients' | 'employees'>('clients');
   const [users, setUsers] = useState<UserListItemDto[]>([]);
@@ -110,8 +112,27 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">{isAdmin ? 'Users' : 'Clients'}</h1>
+      <h1 className="text-xl font-bold text-slate-900">Users</h1>
 
+      <div className="flex gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setSection('users')}
+          className={`px-3 py-2 text-sm font-medium ${section === 'users' ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
+        >
+          Users
+        </button>
+        <button
+          onClick={() => setSection('companies')}
+          className={`px-3 py-2 text-sm font-medium ${section === 'companies' ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
+        >
+          Companies
+        </button>
+      </div>
+
+      {section === 'companies' ? (
+        <CompaniesPage />
+      ) : (
+        <>
       <Card className="p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Create account</h2>
         <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
@@ -247,6 +268,8 @@ export default function UsersPage() {
       </Card>
 
       {result && <TempPasswordModal result={result} onClose={() => setResult(null)} />}
+        </>
+      )}
     </div>
   );
 }

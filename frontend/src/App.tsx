@@ -16,7 +16,6 @@ import UsersPage from './pages/users/UsersPage';
 import UserDetailPage from './pages/users/UserDetailPage';
 import CompanyDetailPage from './pages/users/CompanyDetailPage';
 import TasksPage from './pages/tasks/TasksPage';
-import CompaniesPage from './pages/users/CompaniesPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import EmailsPage from './pages/emails/EmailsPage';
 import EmailCallbackPage from './pages/emails/EmailCallbackPage';
@@ -88,14 +87,6 @@ export default function App() {
               element={
                 <RequireRole roles={['Admin', 'Employee']}>
                   <UserDetailPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/companies"
-              element={
-                <RequireRole roles={['Admin', 'Employee']}>
-                  <CompaniesPage />
                 </RequireRole>
               }
             />

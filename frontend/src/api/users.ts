@@ -46,6 +46,16 @@ export const usersApi = {
   setActive: (userId: string, isActive: boolean) =>
     apiClient.patch(`/api/users/${userId}/active`, { isActive }).then((r) => r.data),
 
+  uploadProfilePicture: (userId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient
+      .post<{ profilePictureUrl: string }>(`/api/users/${userId}/profile-picture`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+
   setMyPhone: (phoneNumber: string) => apiClient.patch('/api/users/me/phone', { phoneNumber }).then((r) => r.data),
 
   skipPhonePrompt: () => apiClient.post('/api/users/me/skip-phone-prompt').then((r) => r.data),

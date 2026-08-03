@@ -113,7 +113,7 @@ export default function CompanyDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/companies" className="text-xs font-medium text-blue-700 hover:underline">
+          <Link to="/users?tab=companies" className="text-xs font-medium text-blue-700 hover:underline">
             ← All companies
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-3">

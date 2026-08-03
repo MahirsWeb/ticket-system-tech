@@ -35,4 +35,7 @@ public class ApplicationUser : IdentityUser<Guid>
 
     /// <summary>Whether the client has been prompted for / provided a phone number yet (banner dismissal).</summary>
     public bool PhoneNumberPrompted { get; set; }
+
+    /// <summary>Optional avatar uploaded by the user (or an admin on their behalf). Null shows a default placeholder.</summary>
+    public string? ProfilePictureUrl { get; set; }
 }

@@ -13,7 +13,6 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; ticketsDropdown?:
     { to: '/tickets', label: 'Tickets', ticketsDropdown: true },
     { to: '/tasks', label: 'Task' },
     { to: '/users', label: 'Users' },
-    { to: '/companies', label: 'Companies' },
     { to: '/settings', label: 'Settings' },
   ],
   Employee: [
@@ -22,7 +21,6 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; ticketsDropdown?:
     { to: '/tasks', label: 'Task' },
     { to: '/emails', label: 'Emails' },
     { to: '/users', label: 'Clients' },
-    { to: '/companies', label: 'Companies' },
   ],
   Client: [
     { to: '/tickets', label: 'My Tickets', ticketsDropdown: true },
