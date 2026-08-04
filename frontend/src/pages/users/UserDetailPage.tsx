@@ -202,14 +202,13 @@ export default function UserDetailPage() {
           <h1 className="text-xl font-bold text-slate-900">
             {target.firstName} {target.lastName}
           </h1>
-          <StatusPill active={target.isActive} />
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">{target.role}</span>
         </div>
       </div>
 
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-wrap items-start gap-5">
+          <div className="flex flex-wrap items-center gap-5">
             <div>
               <UserAvatar
                 url={target.profilePictureUrl}
@@ -225,6 +224,12 @@ export default function UserDetailPage() {
                   <div className="text-xs font-semibold uppercase text-slate-400">Email</div>
                   <div className="text-slate-800">{target.email}</div>
                 </div>
+                {target.role === 'Client' && target.phoneNumber && (
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-400">Phone</div>
+                    <div className="text-slate-800">{target.phoneNumber}</div>
+                  </div>
+                )}
                 <div>
                   <div className="text-xs font-semibold uppercase text-slate-400">{orgLabel}</div>
                   <div className="text-slate-800">{orgValue}</div>

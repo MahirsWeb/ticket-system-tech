@@ -5,7 +5,7 @@ import { workTasksApi } from '../../api/workTasks';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
 import { useAuthStore } from '../../store/authStore';
-import type { DepartmentItemFull, WorkTaskDetailDto, WorkTaskListItem } from '../../types';
+import type { DepartmentItemFull, WorkTaskDetailDto, WorkTaskListItem, WorkTaskStatus } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select, Textarea } from '../../components/ui';
 import { TaskDetailPanel } from './TaskDetailPanel';
 
@@ -23,6 +23,21 @@ function TaskStatusBadge({ status }: { status: string }) {
   );
 }
 
+const STATUS_TABS: { key: WorkTaskStatus; label: string }[] = [
+  { key: 'Pending', label: 'Opened (Pending)' },
+  { key: 'InProgress', label: 'In Progress' },
+  { key: 'Done', label: 'Done' },
+];
+
+const SORTABLE_COLUMNS_BEFORE_STATUS: { key: string; label: string }[] = [{ key: 'title', label: 'Title' }];
+const SORTABLE_COLUMNS_AFTER_STATUS: { key: string; label: string; adminOnly?: boolean }[] = [
+  { key: 'assignedTo', label: 'Assigned to' },
+  { key: 'assignedBy', label: 'Assigned by' },
+  { key: 'branch', label: 'Branch', adminOnly: true },
+  { key: 'started', label: 'Started' },
+  { key: 'ended', label: 'Ended' },
+];
+
 export default function TasksPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
@@ -35,6 +50,9 @@ export default function TasksPage() {
   const [mineOnly, setMineOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<WorkTaskDetailDto | null>(null);
+  const [statusFilter, setStatusFilter] = useState<WorkTaskStatus>('Pending');
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [colleagues, setColleagues] = useState<{ id: string; name: string; departmentName: string | null }[]>([]);
   const [title, setTitle] = useState('');
@@ -79,6 +97,47 @@ export default function TasksPage() {
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [colleagues]);
+
+  const tasksByStatus = useMemo(() => tasks.filter((t) => t.status === statusFilter), [tasks, statusFilter]);
+
+  function handleSort(key: string) {
+    if (sortBy === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sortedTasks = useMemo(() => {
+    if (!sortBy) return tasksByStatus;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const valueOf = (t: WorkTaskListItem): string => {
+      switch (sortBy) {
+        case 'title':
+          return t.title.toLowerCase();
+        case 'assignedTo':
+          return t.assignedToName.toLowerCase();
+        case 'assignedBy':
+          return t.assignedByName.toLowerCase();
+        case 'branch':
+          return t.departmentName.toLowerCase();
+        case 'started':
+          return t.startedAtUtc ?? '';
+        case 'ended':
+          return t.endedAtUtc ?? '';
+        default:
+          return '';
+      }
+    };
+    return [...tasksByStatus].sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [tasksByStatus, sortBy, sortDir]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -135,7 +194,7 @@ export default function TasksPage() {
           <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label>Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Napravi plan za iduću sedmicu" />
+              <Input value={title} maxLength={150} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Napravi plan za iduću sedmicu" />
             </div>
             <div>
               <Label>Assign to</Label>
@@ -187,21 +246,39 @@ export default function TasksPage() {
         )}
       </div>
 
+      <div className="flex gap-2 border-b border-slate-200">
+        {STATUS_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setStatusFilter(t.key)}
+            className={`px-3 py-2 text-sm font-medium ${statusFilter === t.key ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
+          >
+            {t.label} ({tasks.filter((x) => x.status === t.key).length})
+          </button>
+        ))}
+      </div>
+
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
-              <th className="px-4 py-2">Title</th>
+              {SORTABLE_COLUMNS_BEFORE_STATUS.map((col) => (
+                <th key={col.key} className="cursor-pointer select-none px-4 py-2 hover:text-slate-700" onClick={() => handleSort(col.key)}>
+                  {col.label}
+                  {sortBy === col.key && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
+              ))}
               <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Assigned to</th>
-              <th className="px-4 py-2">Assigned by</th>
-              {isAdmin && <th className="px-4 py-2">Branch</th>}
-              <th className="px-4 py-2">Started</th>
-              <th className="px-4 py-2">Ended</th>
+              {SORTABLE_COLUMNS_AFTER_STATUS.filter((col) => !col.adminOnly || isAdmin).map((col) => (
+                <th key={col.key} className="cursor-pointer select-none px-4 py-2 hover:text-slate-700" onClick={() => handleSort(col.key)}>
+                  {col.label}
+                  {sortBy === col.key && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t) => (
+            {sortedTasks.map((t) => (
               <Fragment key={t.id}>
                 <tr className="cursor-pointer border-t border-slate-100 hover:bg-slate-50" onClick={() => toggleExpand(t.id)}>
                   <td className="px-4 py-2 font-medium text-slate-800">{t.title}</td>
@@ -223,10 +300,10 @@ export default function TasksPage() {
                 )}
               </Fragment>
             ))}
-            {tasks.length === 0 && (
+            {sortedTasks.length === 0 && (
               <tr>
                 <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-400">
-                  No tasks yet.
+                  No tasks in this status yet.
                 </td>
               </tr>
             )}
