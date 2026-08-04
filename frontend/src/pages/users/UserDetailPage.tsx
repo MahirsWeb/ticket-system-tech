@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import clsx from 'clsx';
@@ -192,6 +192,18 @@ export default function UserDetailPage() {
       ? target.companyName ?? '—'
       : [target.departmentName, target.subBranchName].filter(Boolean).join(' / ') || '—';
 
+  const profileFields: { label: string; value: ReactNode }[] = [
+    { label: 'Email', value: target.email },
+    ...(target.role === 'Client' && target.phoneNumber ? [{ label: 'Phone', value: target.phoneNumber }] : []),
+    { label: orgLabel, value: orgValue },
+    { label: 'Status', value: <StatusPill active={target.isActive} /> },
+    { label: 'Email verified', value: target.emailConfirmed ? 'Yes' : 'No' },
+    { label: 'Created', value: format(new Date(target.createdAtUtc), 'dd.MM.yyyy') },
+    { label: 'Last login', value: target.lastLoginAtUtc ? format(new Date(target.lastLoginAtUtc), 'dd.MM.yyyy HH:mm') : 'Never' },
+  ];
+  const profileColumns: (typeof profileFields)[] = [];
+  for (let i = 0; i < profileFields.length; i += 3) profileColumns.push(profileFields.slice(i, i + 3));
+
   return (
     <div className="space-y-6">
       <div>
@@ -218,43 +230,17 @@ export default function UserDetailPage() {
               />
               {avatarError && <p className="mt-1 max-w-[6rem] text-[11px] text-red-600">{avatarError}</p>}
             </div>
-            <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-sm sm:grid-cols-2">
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Email</div>
-                  <div className="text-slate-800">{target.email}</div>
+            <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              {profileColumns.map((col, i) => (
+                <div key={i} className="space-y-3">
+                  {col.map((f) => (
+                    <div key={f.label}>
+                      <div className="text-xs font-semibold uppercase text-slate-400">{f.label}</div>
+                      <div className="text-slate-800">{f.value}</div>
+                    </div>
+                  ))}
                 </div>
-                {target.role === 'Client' && target.phoneNumber && (
-                  <div>
-                    <div className="text-xs font-semibold uppercase text-slate-400">Phone</div>
-                    <div className="text-slate-800">{target.phoneNumber}</div>
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">{orgLabel}</div>
-                  <div className="text-slate-800">{orgValue}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Email verified</div>
-                  <div className="text-slate-800">{target.emailConfirmed ? 'Yes' : 'No'}</div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Status</div>
-                  <StatusPill active={target.isActive} />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Created</div>
-                  <div className="text-slate-800">{format(new Date(target.createdAtUtc), 'dd.MM.yyyy')}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold uppercase text-slate-400">Last login</div>
-                  <div className="text-slate-800">
-                    {target.lastLoginAtUtc ? format(new Date(target.lastLoginAtUtc), 'dd.MM.yyyy HH:mm') : 'Never'}
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
           {isAdmin && (
@@ -381,10 +367,13 @@ export default function UserDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t) => (
+                {tickets.map((t, i) => (
                   <tr
                     key={t.id}
-                    className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                    className={clsx(
+                      'cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-100',
+                      i % 2 === 1 && 'bg-slate-50/60'
+                    )}
                     onClick={() => navigate(`/tickets/${t.id}`)}
                   >
                     <td className="whitespace-nowrap px-3 py-1.5">

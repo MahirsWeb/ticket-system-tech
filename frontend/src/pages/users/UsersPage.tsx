@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
@@ -242,8 +243,11 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {visibleUsers.map((u) => (
-              <tr key={u.id} className="border-t border-slate-100 hover:bg-slate-50">
+            {visibleUsers.map((u, i) => (
+              <tr
+                key={u.id}
+                className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-100', i % 2 === 1 && 'bg-slate-50/60')}
+              >
                 <td className="px-4 py-2">
                   <Link to={`/users/${u.id}`} className="font-medium text-blue-700 hover:underline">
                     {u.firstName} {u.lastName}

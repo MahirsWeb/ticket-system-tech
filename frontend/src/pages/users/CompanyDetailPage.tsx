@@ -205,8 +205,11 @@ export default function CompanyDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredClients.map((c) => (
-                <tr key={c.id} className="border-t border-slate-100">
+              {filteredClients.map((c, i) => (
+                <tr
+                  key={c.id}
+                  className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-100', i % 2 === 1 && 'bg-slate-50/60')}
+                >
                   <td className="px-4 py-2">
                     {c.firstName} {c.lastName}
                   </td>
@@ -262,8 +265,11 @@ export default function CompanyDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t) => (
-                  <tr key={t.id} className="border-t border-slate-100 hover:bg-slate-50">
+                {tickets.map((t, i) => (
+                  <tr
+                    key={t.id}
+                    className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-100', i % 2 === 1 && 'bg-slate-50/60')}
+                  >
                     <td className="whitespace-nowrap px-3 py-1.5">
                       <Link to={`/tickets/${t.id}`} className="font-medium text-blue-700 hover:underline">
                         #{t.ticketNumber}
