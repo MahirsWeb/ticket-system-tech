@@ -202,7 +202,7 @@ export default function TicketsListPage() {
                 {items.map((t, i) => (
                   <tr
                     key={t.id}
-                    className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-100', i % 2 === 1 && 'bg-slate-50/60')}
+                    className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-200', i % 2 === 1 && 'bg-slate-100')}
                   >
                     <td className="whitespace-nowrap px-3 py-1.5">
                       <Link to={`/tickets/${t.id}`} className="font-medium text-blue-700 hover:underline">

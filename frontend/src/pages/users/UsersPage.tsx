@@ -246,7 +246,7 @@ export default function UsersPage() {
             {visibleUsers.map((u, i) => (
               <tr
                 key={u.id}
-                className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-100', i % 2 === 1 && 'bg-slate-50/60')}
+                className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-200', i % 2 === 1 && 'bg-slate-100')}
               >
                 <td className="px-4 py-2">
                   <Link to={`/users/${u.id}`} className="font-medium text-blue-700 hover:underline">

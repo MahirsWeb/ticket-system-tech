@@ -281,7 +281,7 @@ export default function TasksPage() {
             {sortedTasks.map((t, i) => (
               <Fragment key={t.id}>
                 <tr
-                  className={clsx('cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-100', i % 2 === 1 && 'bg-slate-50/60')}
+                  className={clsx('cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-200', i % 2 === 1 && 'bg-slate-100')}
                   onClick={() => toggleExpand(t.id)}
                 >
                   <td className="px-4 py-2 font-medium text-slate-800">{t.title}</td>

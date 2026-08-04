@@ -371,8 +371,8 @@ export default function UserDetailPage() {
                   <tr
                     key={t.id}
                     className={clsx(
-                      'cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-100',
-                      i % 2 === 1 && 'bg-slate-50/60'
+                      'cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-200',
+                      i % 2 === 1 && 'bg-slate-100'
                     )}
                     onClick={() => navigate(`/tickets/${t.id}`)}
                   >
