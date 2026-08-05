@@ -62,6 +62,11 @@ export function KnowledgeBaseSearchPanel({ initialQuery }: { initialQuery: strin
         <div className="mb-4 rounded-md border border-blue-100 bg-blue-50 p-4 text-sm text-slate-800">
           <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-700">AI answer</div>
           <p className="whitespace-pre-wrap">{answer}</p>
+          <p className="mt-3 border-t border-blue-100 pt-3 text-xs text-red-600">
+            <span className="font-bold">WARNING!</span> This answer is suggested based on tickets in the knowledge
+            base — it doesn't mean it's 100% relevant to use for this specific type of problem. Consult with a more
+            experienced colleague before relying on it.
+          </p>
         </div>
       )}
 
