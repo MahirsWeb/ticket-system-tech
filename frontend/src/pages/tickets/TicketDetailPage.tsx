@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ticketsApi } from '../../api/tickets';
 import type { TicketDetailDto } from '../../types';
-import { Card, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
+import { Button, Card, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useAuthStore } from '../../store/authStore';
 import { OpenTicketForm } from './OpenTicketForm';
 import { CloseTicketForm } from './CloseTicketForm';
@@ -28,6 +29,19 @@ export default function TicketDetailPage() {
   const user = useAuthStore((s) => s.user);
   const [ticket, setTicket] = useState<TicketDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmReopen, setConfirmReopen] = useState(false);
+  const [reopening, setReopening] = useState(false);
+
+  async function handleReopenConfirmed() {
+    if (!id) return;
+    setConfirmReopen(false);
+    setReopening(true);
+    try {
+      setTicket(await ticketsApi.reopen(id));
+    } finally {
+      setReopening(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -46,6 +60,7 @@ export default function TicketDetailPage() {
   const isStaff = user.role === 'Admin' || user.role === 'Employee';
   const canOpen = isStaff && ticket.status === 'New';
   const canClose = isStaff && ticket.status !== 'New' && ticket.status !== 'Closed';
+  const canReopen = isStaff && ticket.status === 'Closed';
   const canTransfer = isStaff && ticket.status !== 'New';
   const canSeeInternalNotes = user.role !== 'Client';
   const canReplyResponse = ticket.status !== 'Closed';
@@ -118,7 +133,14 @@ export default function TicketDetailPage() {
 
       {ticket.status === 'Closed' && (
         <Card className="p-5">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Resolution</h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Resolution</h2>
+            {canReopen && (
+              <Button variant="secondary" className="shrink-0 text-xs" disabled={reopening} onClick={() => setConfirmReopen(true)}>
+                {reopening ? 'Reopening…' : 'Reopen ticket'}
+              </Button>
+            )}
+          </div>
           <p className="whitespace-pre-wrap text-sm text-slate-800">{ticket.resolutionSummary}</p>
           {canSeeInternalNotes && ticket.technicalNotes && (
             <div className="mt-3 rounded-md bg-slate-50 p-3">
@@ -145,6 +167,16 @@ export default function TicketDetailPage() {
       </Card>
 
       {canClose && <CloseTicketForm ticket={ticket} onClosed={setTicket} />}
+
+      {confirmReopen && (
+        <ConfirmDialog
+          title="Reopen this ticket?"
+          message="The ticket goes back to Open and the client and assignees can pick it back up. Its previous resolution notes stay in place until it's closed again."
+          confirmLabel="Reopen"
+          onConfirm={handleReopenConfirmed}
+          onCancel={() => setConfirmReopen(false)}
+        />
+      )}
     </div>
   );
 }

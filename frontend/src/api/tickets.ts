@@ -68,6 +68,8 @@ export const ticketsApi = {
   close: (id: string, resolutionSummary: string, technicalNotes?: string) =>
     apiClient.post<TicketDetailDto>(`/api/tickets/${id}/close`, { resolutionSummary, technicalNotes }).then((r) => r.data),
 
+  reopen: (id: string) => apiClient.post<TicketDetailDto>(`/api/tickets/${id}/reopen`).then((r) => r.data),
+
   transferBranch: (id: string, departmentId: string) =>
     apiClient.post<TicketDetailDto>(`/api/tickets/${id}/transfer-branch`, { departmentId }).then((r) => r.data),
 

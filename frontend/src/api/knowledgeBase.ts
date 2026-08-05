@@ -14,4 +14,6 @@ export const knowledgeBaseApi = {
 
   ask: (question: string) =>
     apiClient.post<KnowledgeBaseAskResponse>('/api/knowledge-base/ask', { question }).then((r) => r.data),
+
+  reindexAll: () => apiClient.post<{ indexed: number }>('/api/knowledge-base/reindex-all').then((r) => r.data),
 };

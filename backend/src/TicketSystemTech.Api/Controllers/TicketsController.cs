@@ -434,6 +434,37 @@ public class TicketsController : ControllerBase
         return Ok(await BuildDetailDto(id));
     }
 
+    /// <summary>
+    /// Reopens a closed ticket — e.g. something was missed and needs to be added or fixed before it's
+    /// really done. Any Admin or Employee with access to the ticket can reopen it, not just whoever closed it.
+    /// </summary>
+    [HttpPost("{id:guid}/reopen")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
+    public async Task<ActionResult<TicketDetailDto>> ReopenTicket(Guid id)
+    {
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null) return NotFound();
+        if (!CanAccess(ticket)) return Forbid();
+        if (ticket.Status != TicketStatus.Closed) return BadRequest(new { message = "Only closed tickets can be reopened." });
+
+        ticket.Status = TicketStatus.Open;
+        ticket.ClosedByUserId = null;
+        ticket.ClosedAtUtc = null;
+
+        var reopenedBy = await _db.Users.FirstAsync(u => u.Id == _currentUser.UserId);
+        _db.TicketMessages.Add(new TicketMessage
+        {
+            TicketId = ticket.Id,
+            AuthorId = reopenedBy.Id,
+            Type = MessageType.SystemEvent,
+            BodyHtml = $"<p>Ticket reopened by {reopenedBy.FirstName} {reopenedBy.LastName}.</p>"
+        });
+
+        await _db.SaveChangesAsync();
+
+        return Ok(await BuildDetailDto(id));
+    }
+
     /// <summary>Adds a co-assignee — e.g. a second person who helped resolve a different part of the same ticket.</summary>
     [HttpPost("{id:guid}/assignees")]
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]

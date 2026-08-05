@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { lookupsApi } from '../../api/lookups';
 import { settingsApi } from '../../api/settings';
+import { knowledgeBaseApi } from '../../api/knowledgeBase';
 import type { DepartmentItemFull, LookupItemFull, SlaPlanItemFull, SubBranchItemFull } from '../../types';
 import { Button, Card, ErrorText, Input, Label, StatusPill, SuccessText } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -743,32 +744,73 @@ function NotificationsTab() {
   if (loading) return null;
 
   return (
+    <div className="space-y-6">
+      <Panel className="max-w-lg">
+        <h2 className="text-sm font-bold text-slate-800">Overdue ticket notifications</h2>
+        <p className="mt-0.5 mb-4 text-xs text-slate-400">
+          Emails every assignee once a ticket first becomes overdue. Each ticket is only notified once.
+        </p>
+        <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={notifyOnSlaBreach} onChange={(e) => setNotifyOnSlaBreach(e.target.checked)} />
+          Notify when a ticket passes its SLA due date
+        </label>
+        <Label>Also notify after this many days open (optional)</Label>
+        <Input
+          type="number"
+          min={1}
+          max={365}
+          placeholder="e.g. 3"
+          value={manualOverdueDays}
+          onChange={(e) => setManualOverdueDays(e.target.value)}
+          className="max-w-[8rem]"
+        />
+        <div className="mt-4">
+          <ErrorText>{error}</ErrorText>
+          <SuccessText>{saved ? 'Saved.' : null}</SuccessText>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </Panel>
+
+      <KnowledgeBaseMaintenancePanel />
+    </div>
+  );
+}
+
+function KnowledgeBaseMaintenancePanel() {
+  const [reindexing, setReindexing] = useState(false);
+  const [result, setResult] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleReindex() {
+    setReindexing(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await knowledgeBaseApi.reindexAll();
+      setResult(res.indexed);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not reindex the knowledge base.');
+    } finally {
+      setReindexing(false);
+    }
+  }
+
+  return (
     <Panel className="max-w-lg">
-      <h2 className="text-sm font-bold text-slate-800">Overdue ticket notifications</h2>
+      <h2 className="text-sm font-bold text-slate-800">Knowledge base</h2>
       <p className="mt-0.5 mb-4 text-xs text-slate-400">
-        Emails every assignee once a ticket first becomes overdue. Each ticket is only notified once.
+        AI search only picks up a ticket once it's been indexed — normally that happens automatically the moment a
+        ticket is closed through the app. Tickets inserted directly (e.g. bulk-imported demo data) skip that step, so
+        they won't show up in AI search or chat until you reindex. This rebuilds the knowledge base entry for every
+        ticket in the system — safe to run any time.
       </p>
-      <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" checked={notifyOnSlaBreach} onChange={(e) => setNotifyOnSlaBreach(e.target.checked)} />
-        Notify when a ticket passes its SLA due date
-      </label>
-      <Label>Also notify after this many days open (optional)</Label>
-      <Input
-        type="number"
-        min={1}
-        max={365}
-        placeholder="e.g. 3"
-        value={manualOverdueDays}
-        onChange={(e) => setManualOverdueDays(e.target.value)}
-        className="max-w-[8rem]"
-      />
-      <div className="mt-4">
-        <ErrorText>{error}</ErrorText>
-        <SuccessText>{saved ? 'Saved.' : null}</SuccessText>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
+      <ErrorText>{error}</ErrorText>
+      {result !== null && <SuccessText>{`Reindexed ${result} tickets.`}</SuccessText>}
+      <Button onClick={handleReindex} disabled={reindexing}>
+        {reindexing ? 'Reindexing…' : 'Reindex all tickets'}
+      </Button>
     </Panel>
   );
 }
