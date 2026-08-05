@@ -89,7 +89,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         subBranchId: subBranchId || undefined,
         slaPlanId,
         priority,
-        dueDateUtc: new Date(dueDate).toISOString(),
+        dueDateUtc: new Date(`${dueDate}T23:59:59`).toISOString(),
         assignedToUserId,
         categoryId: categoryId || undefined,
       });
@@ -176,9 +176,9 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
           </Select>
         </div>
         <div>
-          <Label>Due date (CET)</Label>
+          <Label>Due date</Label>
           <input
-            type="datetime-local"
+            type="date"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}

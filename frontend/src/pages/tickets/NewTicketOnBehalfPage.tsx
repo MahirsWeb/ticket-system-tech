@@ -35,6 +35,7 @@ export default function NewTicketOnBehalfPage() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [source, setSource] = useState<TicketSource>('Phone');
   const [priority, setPriority] = useState<TicketPriority>('Medium');
   const [helpTopicId, setHelpTopicId] = useState('');
@@ -100,6 +101,14 @@ export default function NewTicketOnBehalfPage() {
     });
   }, [fromEmailMessageId]);
 
+  function addFiles(newFiles: File[]) {
+    setFiles((prev) => [...prev, ...newFiles]);
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleLookup(e: React.FormEvent) {
     e.preventDefault();
     setLookupError(null);
@@ -143,10 +152,13 @@ export default function NewTicketOnBehalfPage() {
         subBranchId: subBranchId || undefined,
         slaPlanId,
         priority,
-        dueDateUtc: new Date(dueDate).toISOString(),
+        dueDateUtc: new Date(`${dueDate}T23:59:59`).toISOString(),
         assignedToUserId,
         categoryId: categoryId || undefined,
       });
+      if (files.length > 0) {
+        await ticketsApi.uploadAttachments(ticket.id, files);
+      }
       if (fromEmailMessageId) {
         await emailIntegrationApi.completeTicket(fromEmailMessageId, ticket.id);
       }
@@ -206,7 +218,24 @@ export default function NewTicketOnBehalfPage() {
             </div>
             <div>
               <Label>Description *</Label>
-              <RichTextEditor value={description} onChange={setDescription} placeholder="Describe the issue as reported by the client…" />
+              <RichTextEditor
+                value={description}
+                onChange={setDescription}
+                onFilesSelected={addFiles}
+                placeholder="Describe the issue as reported by the client…"
+              />
+              {files.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {files.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+                      📎 {f.name}
+                      <button type="button" onClick={() => removeFile(i)} className="ml-1 font-bold text-slate-400 hover:text-red-600">
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -281,9 +310,9 @@ export default function NewTicketOnBehalfPage() {
                 </Select>
               </div>
               <div>
-                <Label>Due date (CET)</Label>
+                <Label>Due date</Label>
                 <input
-                  type="datetime-local"
+                  type="date"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}

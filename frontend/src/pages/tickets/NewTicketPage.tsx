@@ -12,6 +12,14 @@ export default function NewTicketPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function addFiles(newFiles: File[]) {
+    setFiles((prev) => [...prev, ...newFiles]);
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -44,21 +52,21 @@ export default function NewTicketPage() {
           </div>
           <div>
             <Label>Description *</Label>
-            <RichTextEditor value={description} onChange={setDescription} placeholder="Describe the issue in detail…" />
-          </div>
-          <div>
-            <Label>Attachments (optional)</Label>
-            <input
-              type="file"
-              multiple
-              accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-              className="block w-full text-sm text-slate-600"
+            <RichTextEditor
+              value={description}
+              onChange={setDescription}
+              onFilesSelected={addFiles}
+              placeholder="Describe the issue in detail… (you can also paste or attach a screenshot)"
             />
             {files.length > 0 && (
-              <ul className="mt-2 text-xs text-slate-500">
-                {files.map((f) => (
-                  <li key={f.name}>{f.name}</li>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {files.map((f, i) => (
+                  <li key={`${f.name}-${i}`} className="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+                    📎 {f.name}
+                    <button type="button" onClick={() => removeFile(i)} className="ml-1 font-bold text-slate-400 hover:text-red-600">
+                      ×
+                    </button>
+                  </li>
                 ))}
               </ul>
             )}
