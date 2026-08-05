@@ -258,8 +258,54 @@ public class ReportsController : ControllerBase
             x.ClosedByUserId.HasValue ? names.GetValueOrDefault(x.ClosedByUserId.Value) : null
         )).ToList();
 
-        var bytes = TicketExcelExporter.Build(rows, f, t);
+        var timelineRows = await BuildTimelineExportRowsAsync(f, t, agentId, departmentId);
+
+        var bytes = TicketExcelExporter.Build(rows, f, t, timelineRows);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"tickets-export-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx");
+    }
+
+    /// <summary>
+    /// One row per ticket/task work block for every Employee in scope (a specific agent, a whole branch, or —
+    /// with no filter — every Employee) across the exported date range. Feeds the export's "Timeline" sheet,
+    /// the data-table equivalent of the Dashboard's Gantt chart for the whole team at once.
+    /// </summary>
+    private async Task<List<TimelineExportRow>> BuildTimelineExportRowsAsync(DateTime from, DateTime to, Guid? agentId, Guid? departmentId)
+    {
+        var employeeQuery = _db.Users.AsNoTracking().Where(u => u.Role == UserRole.Employee && u.IsActive);
+        if (agentId.HasValue) employeeQuery = employeeQuery.Where(u => u.Id == agentId.Value);
+        else if (departmentId.HasValue) employeeQuery = employeeQuery.Where(u => u.DepartmentId == departmentId.Value);
+        var employees = await employeeQuery.OrderBy(u => u.FirstName).ToListAsync();
+
+        var timelineRows = new List<TimelineExportRow>();
+        foreach (var employee in employees)
+        {
+            var employeeName = $"{employee.FirstName} {employee.LastName}";
+
+            var ticketBlocks = await _db.Tickets.AsNoTracking()
+                .Where(x => x.AssignedToUserId == employee.Id || x.Assignees.Any(a => a.UserId == employee.Id))
+                .Select(x => new { x.TicketNumber, x.Title, x.Status, Start = x.WorkStartedAtUtc ?? x.OpenedAtUtc, End = x.WorkEndedAtUtc ?? x.ClosedAtUtc })
+                .Where(x => x.Start != null && x.Start < to && (x.End == null || x.End >= from))
+                .ToListAsync();
+            foreach (var b in ticketBlocks)
+            {
+                timelineRows.Add(new TimelineExportRow(
+                    employeeName, "Ticket", $"#{b.TicketNumber} — {b.Title}", b.Status.ToString(), b.Start, b.End,
+                    b.Start.HasValue && b.End.HasValue ? Math.Round((b.End.Value - b.Start.Value).TotalHours, 1) : (double?)null));
+            }
+
+            var taskBlocks = await _db.WorkTasks.AsNoTracking()
+                .Where(x => x.AssignedToUserId == employee.Id && x.StartedAtUtc != null && x.StartedAtUtc < to && (x.EndedAtUtc == null || x.EndedAtUtc >= from))
+                .Select(x => new { x.Title, x.Status, x.StartedAtUtc, x.EndedAtUtc })
+                .ToListAsync();
+            foreach (var b in taskBlocks)
+            {
+                timelineRows.Add(new TimelineExportRow(
+                    employeeName, "Task", b.Title, b.Status.ToString(), b.StartedAtUtc, b.EndedAtUtc,
+                    b.StartedAtUtc.HasValue && b.EndedAtUtc.HasValue ? Math.Round((b.EndedAtUtc.Value - b.StartedAtUtc.Value).TotalHours, 1) : (double?)null));
+            }
+        }
+
+        return timelineRows.OrderBy(r => r.Employee).ThenBy(r => r.StartUtc).ToList();
     }
 
     private static (DateTime From, DateTime To) NormalizeRange(DateTime? from, DateTime? to)

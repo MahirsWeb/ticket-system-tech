@@ -78,3 +78,11 @@ public record GanttResponse(
     DateTime Date,
     List<GanttEntryDto> Entries
 );
+
+/// <summary>Every Employee's daily timeline in one branch, side by side — Admin's "whole branch" Gantt view.</summary>
+public record BranchGanttResponse(
+    Guid DepartmentId,
+    string DepartmentName,
+    DateTime Date,
+    List<GanttResponse> Users
+);

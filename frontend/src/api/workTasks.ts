@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { GanttResponse, WorkTaskDetailDto, WorkTaskListItem, WorkTaskStatus } from '../types';
+import type { BranchGanttResponse, GanttResponse, WorkTaskDetailDto, WorkTaskListItem, WorkTaskStatus } from '../types';
 
 export interface WorkTaskListParams {
   departmentId?: string;
@@ -28,4 +28,7 @@ export const workTasksApi = {
 
   gantt: (userId: string, date?: string) =>
     apiClient.get<GanttResponse>('/api/work-tasks/gantt', { params: { userId, date } }).then((r) => r.data),
+
+  ganttBranch: (departmentId: string, date?: string) =>
+    apiClient.get<BranchGanttResponse>('/api/work-tasks/gantt/branch', { params: { departmentId, date } }).then((r) => r.data),
 };

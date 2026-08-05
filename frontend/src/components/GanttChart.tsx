@@ -79,9 +79,35 @@ export function GanttChart({ entries, date }: { entries: GanttEntryDto[]; date: 
   const tasks = entries.filter((e) => e.type === 'WorkTask');
   const nowPct = isToday && now >= rangeStart && now <= rangeEnd ? pct(now) : null;
 
+  const ROW_HEIGHT = 40; // 36px block + 4px gap
+
   function Lane({ items, colors, emptyLabel }: { items: GanttEntryDto[]; colors: Record<string, string>; emptyLabel: string }) {
+    // Greedily pack time-overlapping items into separate sub-rows (earliest start first) so
+    // simultaneous work is stacked, never rendered on top of itself.
+    const withTimes = items
+      .map((e) => {
+        const start = e.startedAtUtc ? new Date(e.startedAtUtc) : rangeStart;
+        const end = e.endedAtUtc ? new Date(e.endedAtUtc) : isToday ? now : rangeEnd;
+        return { entry: e, start, end };
+      })
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    const rowEnds: number[] = [];
+    const placed = withTimes.map(({ entry, start, end }) => {
+      let row = rowEnds.findIndex((endTime) => endTime <= start.getTime());
+      if (row === -1) {
+        row = rowEnds.length;
+        rowEnds.push(end.getTime());
+      } else {
+        rowEnds[row] = end.getTime();
+      }
+      return { entry, start, end, row };
+    });
+    const rowCount = Math.max(1, rowEnds.length);
+    const laneHeight = rowCount * ROW_HEIGHT + 8;
+
     return (
-      <div className="relative h-11 rounded-md bg-slate-50">
+      <div className="relative rounded-md bg-slate-50" style={{ height: laneHeight }}>
         {hourMarks.map((h) => (
           <div key={h.toISOString()} className="absolute top-0 h-full w-px bg-slate-200" style={{ left: `${pct(h)}%` }} />
         ))}
@@ -89,9 +115,7 @@ export function GanttChart({ entries, date }: { entries: GanttEntryDto[]; date: 
         {items.length === 0 && (
           <div className="flex h-full items-center px-3 text-xs text-slate-300">{emptyLabel}</div>
         )}
-        {items.map((e) => {
-          const start = e.startedAtUtc ? new Date(e.startedAtUtc) : rangeStart;
-          const end = e.endedAtUtc ? new Date(e.endedAtUtc) : isToday ? now : rangeEnd;
+        {placed.map(({ entry: e, start, end, row }) => {
           const left = pct(start);
           const width = Math.max(0.6, pct(end) - left);
           const ongoing = !e.endedAtUtc;
@@ -101,10 +125,10 @@ export function GanttChart({ entries, date }: { entries: GanttEntryDto[]; date: 
               onMouseEnter={() => setHovered(e)}
               onMouseLeave={() => setHovered(null)}
               className={clsx(
-                'absolute top-1 flex h-9 items-center overflow-hidden rounded-md px-2 shadow-sm transition-transform hover:z-20 hover:scale-[1.03]',
+                'absolute flex h-9 items-center overflow-hidden rounded-md px-2 shadow-sm transition-transform hover:z-20 hover:scale-[1.03]',
                 ongoing && 'ring-2 ring-white ring-offset-1 ring-offset-red-400'
               )}
-              style={{ left: `${left}%`, width: `${width}%`, background: colors[e.status] ?? '#64748b' }}
+              style={{ left: `${left}%`, width: `${width}%`, top: 4 + row * ROW_HEIGHT, background: colors[e.status] ?? '#64748b' }}
             >
               <span className="truncate text-[11px] font-semibold text-white">{e.title}</span>
             </div>

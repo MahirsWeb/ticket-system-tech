@@ -6,6 +6,7 @@ import { usersApi } from '../../api/users';
 import { workTasksApi } from '../../api/workTasks';
 import type {
   BranchBreakdownEntryDto,
+  BranchGanttResponse,
   DepartmentItemFull,
   GanttResponse,
   LeaderboardEntryDto,
@@ -100,9 +101,12 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  const [ganttMode, setGanttMode] = useState<'person' | 'branch'>('person');
   const [ganttUserId, setGanttUserId] = useState('');
+  const [ganttDepartmentId, setGanttDepartmentId] = useState('');
   const [ganttDate, setGanttDate] = useState(() => new Date());
   const [ganttData, setGanttData] = useState<GanttResponse | null>(null);
+  const [ganttBranchData, setGanttBranchData] = useState<BranchGanttResponse | null>(null);
   const [ganttLoading, setGanttLoading] = useState(false);
   const [ganttError, setGanttError] = useState<string | null>(null);
 
@@ -121,6 +125,20 @@ export default function DashboardPage() {
   }, [isAdmin, user?.id]);
 
   useEffect(() => {
+    if (ganttMode === 'branch') {
+      if (!ganttDepartmentId) {
+        setGanttBranchData(null);
+        return;
+      }
+      setGanttLoading(true);
+      setGanttError(null);
+      workTasksApi
+        .ganttBranch(ganttDepartmentId, format(ganttDate, 'yyyy-MM-dd'))
+        .then(setGanttBranchData)
+        .catch((err: any) => setGanttError(err?.response?.data?.message ?? 'Could not load the timeline.'))
+        .finally(() => setGanttLoading(false));
+      return;
+    }
     if (!ganttUserId) {
       setGanttData(null);
       return;
@@ -132,7 +150,7 @@ export default function DashboardPage() {
       .then(setGanttData)
       .catch((err: any) => setGanttError(err?.response?.data?.message ?? 'Could not load the timeline.'))
       .finally(() => setGanttLoading(false));
-  }, [ganttUserId, ganttDate]);
+  }, [ganttMode, ganttUserId, ganttDepartmentId, ganttDate]);
 
   useEffect(() => {
     const params = { from: from.toISOString(), to: to.toISOString(), departmentId: departmentId || undefined, agentId: agentId || undefined };
@@ -269,20 +287,49 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-400">Tickets and tasks for one person, on the same hour axis — see what was squeezed in alongside a ticket.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-56">
-              <Select value={ganttUserId} onChange={(e) => setGanttUserId(e.target.value)}>
-                <option value="">Select a person…</option>
-                {employeesByBranch.map(([branchName, group]) => (
-                  <optgroup key={branchName} label={branchName}>
-                    {group.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.firstName} {e.lastName} ({e.role})
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </Select>
-            </div>
+            {isAdmin && (
+              <div className="flex rounded-md border border-slate-300 p-0.5 text-xs">
+                <button
+                  className={`rounded px-2.5 py-1 font-medium ${ganttMode === 'person' ? 'bg-blue-700 text-white' : 'text-slate-500'}`}
+                  onClick={() => setGanttMode('person')}
+                >
+                  One person
+                </button>
+                <button
+                  className={`rounded px-2.5 py-1 font-medium ${ganttMode === 'branch' ? 'bg-blue-700 text-white' : 'text-slate-500'}`}
+                  onClick={() => setGanttMode('branch')}
+                >
+                  Whole branch
+                </button>
+              </div>
+            )}
+            {ganttMode === 'person' ? (
+              <div className="w-56">
+                <Select value={ganttUserId} onChange={(e) => setGanttUserId(e.target.value)}>
+                  <option value="">Select a person…</option>
+                  {employeesByBranch.map(([branchName, group]) => (
+                    <optgroup key={branchName} label={branchName}>
+                      {group.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.firstName} {e.lastName} ({e.role})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </Select>
+              </div>
+            ) : (
+              <div className="w-56">
+                <Select value={ganttDepartmentId} onChange={(e) => setGanttDepartmentId(e.target.value)}>
+                  <option value="">Select a branch…</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
             <input
               type="date"
               value={format(ganttDate, 'yyyy-MM-dd')}
@@ -294,7 +341,26 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
-        {!ganttUserId ? (
+        {ganttMode === 'branch' ? (
+          !ganttDepartmentId ? (
+            <p className="py-10 text-center text-sm text-slate-400">Choose a branch above to see everyone's timeline.</p>
+          ) : ganttLoading ? (
+            <p className="py-10 text-center text-sm text-slate-400">Loading…</p>
+          ) : ganttError ? (
+            <ErrorText>{ganttError}</ErrorText>
+          ) : !ganttBranchData || ganttBranchData.users.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">No active employees in this branch.</p>
+          ) : (
+            <div className="space-y-5">
+              {ganttBranchData.users.map((u) => (
+                <div key={u.userId} className="border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
+                  <div className="mb-1 text-xs font-semibold text-slate-600">{u.userName}</div>
+                  <GanttChart entries={u.entries} date={ganttDate} />
+                </div>
+              ))}
+            </div>
+          )
+        ) : !ganttUserId ? (
           <p className="py-10 text-center text-sm text-slate-400">Choose a person above to see their timeline.</p>
         ) : ganttLoading ? (
           <p className="py-10 text-center text-sm text-slate-400">Loading…</p>

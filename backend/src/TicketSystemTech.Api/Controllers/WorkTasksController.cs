@@ -208,11 +208,47 @@ public class WorkTasksController : ControllerBase
             return Forbid();
 
         var day = DateTime.SpecifyKind((date ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
+        var entries = await BuildGanttEntriesAsync(userId, day);
+        return Ok(new GanttResponse(userId, $"{targetUser.FirstName} {targetUser.LastName}", day, entries));
+    }
+
+    /// <summary>
+    /// Same timeline as <see cref="Gantt"/>, but for every Employee in a branch at once — so Admin (or staff,
+    /// for their own branch) can see the whole team's day side by side instead of picking one person at a time.
+    /// </summary>
+    [HttpGet("gantt/branch")]
+    public async Task<ActionResult<BranchGanttResponse>> GanttByBranch([FromQuery] Guid departmentId, [FromQuery] DateTime? date)
+    {
+        var department = await _db.Departments.FirstOrDefaultAsync(d => d.Id == departmentId);
+        if (department is null) return NotFound();
+        if (_currentUser.Role != UserRole.Admin && departmentId != _currentUser.DepartmentId)
+            return Forbid();
+
+        var day = DateTime.SpecifyKind((date ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
+        var employees = await _db.Users.AsNoTracking()
+            .Where(u => u.Role == UserRole.Employee && u.DepartmentId == departmentId && u.IsActive)
+            .OrderBy(u => u.FirstName)
+            .ToListAsync();
+
+        var users = new List<GanttResponse>();
+        foreach (var employee in employees)
+        {
+            var entries = await BuildGanttEntriesAsync(employee.Id, day);
+            users.Add(new GanttResponse(employee.Id, $"{employee.FirstName} {employee.LastName}", day, entries));
+        }
+
+        return Ok(new BranchGanttResponse(department.Id, department.Name, day, users));
+    }
+
+    /// <summary>
+    /// A ticket's Gantt block uses the manually-logged work session if staff filled one in (WorkStartedAtUtc/
+    /// WorkEndedAtUtc, precise), otherwise falls back to when the ticket was opened/closed — so a ticket shows
+    /// up on the timeline as soon as it's opened, without staff having to remember to fill in a separate field.
+    /// </summary>
+    private async Task<List<GanttEntryDto>> BuildGanttEntriesAsync(Guid userId, DateTime day)
+    {
         var dayEnd = day.AddDays(1);
 
-        // A ticket's Gantt block uses the manually-logged work session if staff filled one in (WorkStartedAtUtc/
-        // WorkEndedAtUtc, precise), otherwise falls back to when the ticket was opened/closed — so a ticket shows
-        // up on the timeline as soon as it's opened, without staff having to remember to fill in a separate field.
         var ticketRows = await _db.Tickets.AsNoTracking()
             .Where(t => t.AssignedToUserId == userId || t.Assignees.Any(a => a.UserId == userId))
             .Select(t => new
@@ -239,9 +275,7 @@ public class WorkTasksController : ControllerBase
             .Select(t => new GanttEntryDto("WorkTask", t.Id, t.Title, null, t.StartedAtUtc, t.EndedAtUtc, t.Status.ToString()))
             .ToListAsync();
 
-        var entries = tickets.Concat(tasks).OrderBy(e => e.StartedAtUtc).ToList();
-
-        return Ok(new GanttResponse(userId, $"{targetUser.FirstName} {targetUser.LastName}", day, entries));
+        return tickets.Concat(tasks).OrderBy(e => e.StartedAtUtc).ToList();
     }
 
     private async Task NotifyAssignee(WorkTask task, Infrastructure.Identity.ApplicationUser assignee, Infrastructure.Identity.ApplicationUser assignedBy)

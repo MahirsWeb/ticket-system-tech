@@ -20,10 +20,21 @@ public record TicketExportRow(
     string? ResolvedBy
 );
 
+/// <summary>One ticket or task work block for one Employee — the data-table form of a Gantt chart bar.</summary>
+public record TimelineExportRow(
+    string Employee,
+    string Type, // "Ticket" | "Task"
+    string Title,
+    string Status,
+    DateTime? StartUtc,
+    DateTime? EndUtc,
+    double? DurationHours
+);
+
 /// <summary>Builds a two-sheet Excel workbook (raw ticket data + a summary with a monthly bar chart) for the reports export.</summary>
 public static class TicketExcelExporter
 {
-    public static byte[] Build(List<TicketExportRow> rows, DateTime from, DateTime to)
+    public static byte[] Build(List<TicketExportRow> rows, DateTime from, DateTime to, List<TimelineExportRow>? timelineRows = null)
     {
         using var workbook = new XSSFWorkbook();
         var headerStyle = CreateHeaderStyle(workbook);
@@ -31,6 +42,7 @@ public static class TicketExcelExporter
 
         BuildTicketsSheet(workbook, rows, headerStyle, dateStyle);
         BuildSummarySheet(workbook, rows, from, to, headerStyle);
+        if (timelineRows is { Count: > 0 }) BuildTimelineSheet(workbook, timelineRows, headerStyle, dateStyle);
 
         using var ms = new MemoryStream();
         workbook.Write(ms, leaveOpen: true);
@@ -143,6 +155,40 @@ public static class TicketExcelExporter
         {
             TryAddMonthlyChart((XSSFSheet)sheet, monthlyDataStartRow, monthlyDataStartRow + monthly.Count - 1);
         }
+    }
+
+    /// <summary>
+    /// Data-table equivalent of the Dashboard's Gantt chart, for every Employee in scope across the whole
+    /// exported period — one row per ticket/task work block, sorted by employee then start time.
+    /// </summary>
+    private static void BuildTimelineSheet(XSSFWorkbook workbook, List<TimelineExportRow> rows, ICellStyle headerStyle, ICellStyle dateStyle)
+    {
+        var sheet = workbook.CreateSheet("Timeline");
+        string[] headers = { "Employee", "Type", "Title", "Status", "Started (UTC)", "Ended (UTC)", "Duration (hours)" };
+
+        var headerRow = sheet.CreateRow(0);
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = headerRow.CreateCell(i, CellType.String);
+            cell.SetCellValue(headers[i]);
+            cell.CellStyle = headerStyle;
+        }
+
+        for (var r = 0; r < rows.Count; r++)
+        {
+            var row = rows[r];
+            var excelRow = sheet.CreateRow(r + 1);
+            excelRow.CreateCell(0).SetCellValue(row.Employee);
+            excelRow.CreateCell(1).SetCellValue(row.Type);
+            excelRow.CreateCell(2).SetCellValue(row.Title);
+            excelRow.CreateCell(3).SetCellValue(row.Status);
+            if (row.StartUtc.HasValue) SetDateCell(excelRow.CreateCell(4), row.StartUtc.Value, dateStyle);
+            if (row.EndUtc.HasValue) SetDateCell(excelRow.CreateCell(5), row.EndUtc.Value, dateStyle);
+            if (row.DurationHours.HasValue) excelRow.CreateCell(6).SetCellValue(row.DurationHours.Value);
+        }
+
+        int[] widths = { 22, 10, 40, 12, 18, 18, 16 };
+        for (var i = 0; i < headers.Length; i++) sheet.SetColumnWidth(i, widths[i] * 256);
     }
 
     /// <summary>Chart generation is best-effort: if the NPOI charting API misbehaves for any reason, the data tables above still stand on their own.</summary>

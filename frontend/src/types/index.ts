@@ -322,3 +322,10 @@ export interface GanttResponse {
   date: string;
   entries: GanttEntryDto[];
 }
+
+export interface BranchGanttResponse {
+  departmentId: string;
+  departmentName: string;
+  date: string;
+  users: GanttResponse[];
+}
