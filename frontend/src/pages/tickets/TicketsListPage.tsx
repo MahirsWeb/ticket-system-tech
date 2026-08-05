@@ -24,7 +24,9 @@ const SORTABLE_COLUMNS: { key: string; label: string; className?: string }[] = [
 export default function TicketsListPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
-  const isStaff = user?.role === 'Admin' || user?.role === 'Employee';
+  const isEmployee = user?.role === 'Employee';
+  const isStaff = isAdmin || isEmployee;
+  const [section, setSection] = useState<'all' | 'mine'>('all');
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -48,7 +50,10 @@ export default function TicketsListPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [status]);
+  }, [status, section]);
+
+  const effectiveStatus = section === 'mine' ? 'Open,InProgress' : status || undefined;
+  const effectiveAssignedToUserId = section === 'mine' ? user?.id : assignedToUserId || undefined;
 
   useEffect(() => {
     setLoading(true);
@@ -56,9 +61,9 @@ export default function TicketsListPage() {
       .list({
         page,
         pageSize: PAGE_SIZE,
-        status: status || undefined,
+        status: effectiveStatus,
         departmentId: departmentId || undefined,
-        assignedToUserId: assignedToUserId || undefined,
+        assignedToUserId: effectiveAssignedToUserId,
         search: search || undefined,
         sortBy: sortBy ?? undefined,
         sortDir,
@@ -68,7 +73,8 @@ export default function TicketsListPage() {
         setTotalCount(res.totalCount);
       })
       .finally(() => setLoading(false));
-  }, [page, status, departmentId, assignedToUserId, search, sortBy, sortDir]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, effectiveStatus, departmentId, effectiveAssignedToUserId, search, sortBy, sortDir]);
 
   const employeesByBranch = useMemo(() => {
     const scoped = departmentId ? employees.filter((e) => e.departmentId === departmentId) : employees;
@@ -109,27 +115,46 @@ export default function TicketsListPage() {
         )}
       </div>
 
-      <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
-        <div className="w-44">
-          <Select
-            value={status}
-            onChange={(e) =>
-              setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                if (e.target.value) next.set('status', e.target.value);
-                else next.delete('status');
-                return next;
-              })
-            }
+      {isEmployee && (
+        <div className="mb-4 flex gap-2 border-b border-slate-200">
+          <button
+            onClick={() => setSection('all')}
+            className={`px-3 py-2 text-sm font-medium ${section === 'all' ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
           >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </Select>
+            All tickets
+          </button>
+          <button
+            onClick={() => setSection('mine')}
+            className={`px-3 py-2 text-sm font-medium ${section === 'mine' ? 'border-b-2 border-blue-700 text-blue-700' : 'text-slate-500'}`}
+          >
+            My tickets
+          </button>
         </div>
+      )}
+
+      <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
+        {section !== 'mine' && (
+          <div className="w-44">
+            <Select
+              value={status}
+              onChange={(e) =>
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  if (e.target.value) next.set('status', e.target.value);
+                  else next.delete('status');
+                  return next;
+                })
+              }
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
         <div className="w-56">
           <Input
             placeholder="Search by number or title…"
@@ -149,7 +174,7 @@ export default function TicketsListPage() {
             </Select>
           </div>
         )}
-        {isStaff && (
+        {isStaff && section !== 'mine' && (
           <div className="w-52">
             <Select value={assignedToUserId} onChange={(e) => { setAssignedToUserId(e.target.value); setPage(1); }}>
               <option value="">All employees</option>
