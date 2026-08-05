@@ -25,12 +25,14 @@ public class KnowledgeBaseController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IChatCompletionService _chatCompletionService;
     private readonly IKnowledgeBaseIndexer _indexer;
+    private readonly IEmbeddingService _embeddingService;
 
-    public KnowledgeBaseController(AppDbContext db, IChatCompletionService chatCompletionService, IKnowledgeBaseIndexer indexer)
+    public KnowledgeBaseController(AppDbContext db, IChatCompletionService chatCompletionService, IKnowledgeBaseIndexer indexer, IEmbeddingService embeddingService)
     {
         _db = db;
         _chatCompletionService = chatCompletionService;
         _indexer = indexer;
+        _embeddingService = embeddingService;
     }
 
     /// <summary>Backfills the knowledge base for tickets that predate KB indexing (e.g. closed before this feature shipped).</summary>
@@ -46,9 +48,10 @@ public class KnowledgeBaseController : ControllerBase
     }
 
     /// <summary>
-    /// Keyword search over the auto-built knowledge base (ticket descriptions + internal notes + resolutions).
-    /// Falls back to plain-text ranking today; will prefer vector similarity automatically once ticket
-    /// chunks have embeddings (Google AI key configured).
+    /// Semantic search over the auto-built knowledge base (ticket descriptions + internal notes + resolutions),
+    /// ranked by cosine similarity between the query's embedding and each chunk's stored embedding. Falls back
+    /// to plain keyword matching when no embedding provider is configured (no Google AI key) or no chunk has
+    /// an embedding yet.
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult<List<KnowledgeBaseSearchResultDto>>> Search([FromQuery] string query, [FromQuery] int take = 10)
@@ -90,6 +93,64 @@ public class KnowledgeBaseController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(query)) return new List<ChunkMatch>();
 
+        // Prefer real semantic search — embed the query and rank chunks by cosine similarity.
+        var queryEmbedding = await _embeddingService.EmbedAsync(query);
+        if (queryEmbedding is not null)
+        {
+            var semanticMatches = await FindMatchesBySimilarityAsync(queryEmbedding, take);
+            if (semanticMatches.Count > 0) return semanticMatches;
+        }
+
+        // Fallback: no embedding provider configured, or no chunk has an embedding yet.
+        return await FindMatchesByKeywordAsync(query, take);
+    }
+
+    private async Task<List<ChunkMatch>> FindMatchesBySimilarityAsync(float[] queryEmbedding, int take)
+    {
+        // Bounded candidate set: recent chunks, scored in memory (no pgvector index — fine at this scale).
+        var candidates = await _db.KnowledgeBaseChunks.AsNoTracking()
+            .Where(c => c.TicketId != null && c.Embedding != null)
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(1000)
+            .Select(c => new { c.Content, TicketId = c.TicketId!.Value, c.Embedding })
+            .ToListAsync();
+
+        if (candidates.Count == 0) return new List<ChunkMatch>();
+
+        var scored = candidates
+            .Select(c => new { c.TicketId, c.Content, Similarity = CosineSimilarity(queryEmbedding, c.Embedding!) })
+            .OrderByDescending(x => x.Similarity)
+            .Take(Math.Clamp(take, 1, 50))
+            .ToList();
+
+        var ticketIds = scored.Select(s => s.TicketId).ToList();
+        var tickets = await _db.Tickets.AsNoTracking()
+            .Where(t => ticketIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t);
+
+        return scored
+            .Where(s => tickets.ContainsKey(s.TicketId))
+            // Similarity is -1..1; expressed as a 0-100 "match score" for the same DTO shape the keyword path used.
+            .Select(s => new ChunkMatch(tickets[s.TicketId], s.Content, (int)MathF.Round(Math.Clamp(s.Similarity, 0f, 1f) * 100)))
+            .ToList();
+    }
+
+    private static float CosineSimilarity(float[] a, float[] b)
+    {
+        if (a.Length != b.Length || a.Length == 0) return 0f;
+        float dot = 0, magA = 0, magB = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += a[i] * b[i];
+            magA += a[i] * a[i];
+            magB += b[i] * b[i];
+        }
+        if (magA == 0 || magB == 0) return 0f;
+        return dot / (MathF.Sqrt(magA) * MathF.Sqrt(magB));
+    }
+
+    private async Task<List<ChunkMatch>> FindMatchesByKeywordAsync(string query, int take)
+    {
         var keywords = query.ToLowerInvariant()
             .Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length > 2)
