@@ -208,8 +208,10 @@ public class UsersController : ControllerBase
         if (departmentId.HasValue) query = query.Where(u => u.DepartmentId == departmentId.Value);
         if (subBranchId.HasValue) query = query.Where(u => u.SubBranchId == subBranchId.Value);
 
-        // Branches are isolated: non-admin staff only see staff members from their own branch. Clients are shared across branches.
-        if (_currentUser.Role != UserRole.Admin)
+        // Branches are isolated for browsing the whole staff directory unscoped — but if the caller asked
+        // about one specific branch (e.g. picking who to assign a ticket to after routing it there), let
+        // them see that branch's staff even if it isn't their own; staff can now route tickets to any branch.
+        if (_currentUser.Role != UserRole.Admin && !departmentId.HasValue)
         {
             query = query.Where(u => u.Role == UserRole.Client || u.DepartmentId == _currentUser.DepartmentId);
         }
