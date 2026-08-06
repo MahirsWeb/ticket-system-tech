@@ -20,6 +20,9 @@ export interface TicketListParams {
   search?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
+  createdFrom?: string;
+  createdTo?: string;
+  answeredOnly?: boolean;
   page?: number;
   pageSize?: number;
 }

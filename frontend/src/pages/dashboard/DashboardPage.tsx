@@ -251,7 +251,14 @@ export default function DashboardPage() {
               </Select>
             </div>
           )}
-          <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={(f, t) => {
+              setFrom(f ?? subDays(new Date(), 30));
+              setTo(t ?? new Date());
+            }}
+          />
           <Button variant="secondary" onClick={handleExport} disabled={exporting}>
             {exporting ? 'Exporting…' : '⬇ Export XLSX'}
           </Button>

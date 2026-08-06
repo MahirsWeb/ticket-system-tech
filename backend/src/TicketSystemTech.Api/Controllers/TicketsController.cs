@@ -158,6 +158,9 @@ public class TicketsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
+        [FromQuery] DateTime? createdFrom,
+        [FromQuery] DateTime? createdTo,
+        [FromQuery] bool answeredOnly = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -184,6 +187,16 @@ public class TicketsController : ControllerBase
         if (subBranchId.HasValue) query = query.Where(t => t.SubBranchId == subBranchId.Value);
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(t => t.TicketNumber.Contains(search) || t.Title.Contains(search));
+        if (createdFrom.HasValue) query = query.Where(t => t.CreatedAt >= createdFrom.Value);
+        if (createdTo.HasValue) query = query.Where(t => t.CreatedAt <= createdTo.Value);
+        if (answeredOnly)
+        {
+            // "Answered" = an open (never Closed/New) ticket that a staff member has already replied to —
+            // e.g. staff called the client and the client asked to follow up tomorrow, so it's not done yet.
+            var staffIds = await _db.Users.Where(u => u.Role != UserRole.Client).Select(u => u.Id).ToListAsync();
+            query = query.Where(t => t.Status != TicketStatus.Closed && t.Status != TicketStatus.New &&
+                t.Messages.Any(m => m.Type == MessageType.Response && staffIds.Contains(m.AuthorId)));
+        }
 
         var totalCount = await query.CountAsync();
 
