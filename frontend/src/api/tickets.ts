@@ -28,8 +28,8 @@ export interface TicketListParams {
 }
 
 export const ticketsApi = {
-  create: (title: string, description: string) =>
-    apiClient.post<TicketDetailDto>('/api/tickets', { title, description }).then((r) => r.data),
+  create: (title: string, description: string, departmentId: string) =>
+    apiClient.post<TicketDetailDto>('/api/tickets', { title, description, departmentId }).then((r) => r.data),
 
   createOnBehalf: (payload: {
     clientEmail: string;
@@ -41,7 +41,7 @@ export const ticketsApi = {
     subBranchId?: string;
     slaPlanId: string;
     priority: TicketPriority;
-    dueDateUtc: string;
+    dueDateUtc: string | null;
     assignedToUserId: string;
     categoryId?: string;
   }) => apiClient.post<TicketDetailDto>('/api/tickets/on-behalf', payload).then((r) => r.data),
@@ -62,7 +62,7 @@ export const ticketsApi = {
       subBranchId?: string;
       slaPlanId: string;
       priority: TicketPriority;
-      dueDateUtc: string;
+      dueDateUtc: string | null;
       assignedToUserId: string;
       categoryId?: string;
     }

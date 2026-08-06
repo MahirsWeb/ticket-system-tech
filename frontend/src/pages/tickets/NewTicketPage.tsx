@@ -1,16 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi } from '../../api/tickets';
-import { Button, Card, ErrorText, Input, Label } from '../../components/ui';
+import { lookupsApi } from '../../api/lookups';
+import type { DepartmentItemFull } from '../../types';
+import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
 import { RichTextEditor } from '../../components/RichTextEditor';
 
 export default function NewTicketPage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [departments, setDepartments] = useState<DepartmentItemFull[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    lookupsApi.departments().then(setDepartments);
+  }, []);
 
   function addFiles(newFiles: File[]) {
     setFiles((prev) => [...prev, ...newFiles]);
@@ -27,9 +35,13 @@ export default function NewTicketPage() {
       setError('Title and description are required.');
       return;
     }
+    if (!departmentId) {
+      setError('Please select a branch to send this ticket to.');
+      return;
+    }
     setLoading(true);
     try {
-      const ticket = await ticketsApi.create(title, description);
+      const ticket = await ticketsApi.create(title, description, departmentId);
       if (files.length > 0) {
         await ticketsApi.uploadAttachments(ticket.id, files);
       }
@@ -49,6 +61,17 @@ export default function NewTicketPage() {
           <div>
             <Label>Title *</Label>
             <Input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short summary of the issue" />
+          </div>
+          <div>
+            <Label>Branch *</Label>
+            <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">Select a branch…</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} ({d.email})
+                </option>
+              ))}
+            </Select>
           </div>
           <div>
             <Label>Description *</Label>

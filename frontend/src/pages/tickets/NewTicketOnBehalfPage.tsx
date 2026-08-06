@@ -132,8 +132,8 @@ export default function NewTicketOnBehalfPage() {
       setError('Title and description are required.');
       return;
     }
-    if (!helpTopicId || !departmentId || !slaPlanId || !dueDate || !assignedToUserId) {
-      setError('All ticket fields are required.');
+    if (!helpTopicId || !departmentId || !slaPlanId || !assignedToUserId) {
+      setError('All ticket fields except due date are required.');
       return;
     }
     if (subBranches.length > 0 && !subBranchId) {
@@ -152,7 +152,7 @@ export default function NewTicketOnBehalfPage() {
         subBranchId: subBranchId || undefined,
         slaPlanId,
         priority,
-        dueDateUtc: new Date(`${dueDate}T23:59:59`).toISOString(),
+        dueDateUtc: dueDate ? new Date(`${dueDate}T23:59:59`).toISOString() : null,
         assignedToUserId,
         categoryId: categoryId || undefined,
       });

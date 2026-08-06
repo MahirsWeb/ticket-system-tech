@@ -47,6 +47,9 @@ public class TicketsController : ControllerBase
         if (companyId is null)
             return BadRequest(new { message = "Your account is not linked to a company." });
 
+        var department = await _db.Departments.FirstOrDefaultAsync(d => d.Id == request.DepartmentId && d.IsActive);
+        if (department is null) return BadRequest(new { message = "Please select a valid branch." });
+
         var ticket = new Ticket
         {
             TicketNumber = await _ticketNumberGenerator.NextAsync(),
@@ -54,13 +57,14 @@ public class TicketsController : ControllerBase
             Description = request.Description,
             ClientId = clientId,
             CompanyId = companyId.Value,
+            DepartmentId = department.Id,
             Status = TicketStatus.New
         };
         _db.Tickets.Add(ticket);
         await _db.SaveChangesAsync();
 
-        // New tickets are unrouted (no branch yet), so every staff member across all branches is notified for triage.
-        var staff = await _db.Users.Where(u => u.Role == UserRole.Employee && u.IsActive).ToListAsync();
+        // Ticket is routed to the branch the client picked — only that branch's staff are notified for triage.
+        var staff = await _db.Users.Where(u => u.Role == UserRole.Employee && u.IsActive && u.DepartmentId == department.Id).ToListAsync();
         foreach (var member in staff)
         {
             _db.Notifications.Add(new Notification
@@ -72,7 +76,8 @@ public class TicketsController : ControllerBase
             });
         }
         await _db.SaveChangesAsync();
-        await _notificationPublisher.PushToRoleAsync(UserRole.Employee, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+        foreach (var member in staff)
+            await _notificationPublisher.PushToUserAsync(member.Id, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
 
         return Ok(await BuildDetailDto(ticket.Id));
     }
@@ -138,11 +143,13 @@ public class TicketsController : ControllerBase
         });
 
         _db.Notifications.Add(new Notification { UserId = assignee.Id, Type = NotificationType.TicketAssigned, Message = $"Ticket #{ticket.TicketNumber} assigned to you", TicketId = ticket.Id });
+        _db.Notifications.Add(new Notification { UserId = client.Id, Type = NotificationType.TicketOpened, Message = $"Your ticket #{ticket.TicketNumber} has been opened", TicketId = ticket.Id });
         await _db.SaveChangesAsync();
 
         await _emailSender.SendAsync(client.Email!, $"Your ticket #{ticket.TicketNumber} has been opened", EmailTemplates.TicketOpened(client.FirstName, ticket.TicketNumber));
         await _emailSender.SendAsync(assignee.Email!, $"Ticket #{ticket.TicketNumber} assigned to you", EmailTemplates.TicketAssigned(assignee.FirstName, ticket.TicketNumber, ticket.Title));
         await _notificationPublisher.PushToUserAsync(assignee.Id, "ticketAssigned", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+        await _notificationPublisher.PushToUserAsync(client.Id, "ticketOpened", new { ticket.Id, ticket.TicketNumber, ticket.Title });
 
         return Ok(await BuildDetailDto(ticket.Id));
     }
@@ -344,11 +351,13 @@ public class TicketsController : ControllerBase
         });
 
         _db.Notifications.Add(new Notification { UserId = assignee.Id, Type = NotificationType.TicketAssigned, Message = $"Ticket #{ticket.TicketNumber} assigned to you", TicketId = ticket.Id });
+        _db.Notifications.Add(new Notification { UserId = client.Id, Type = NotificationType.TicketOpened, Message = $"Your ticket #{ticket.TicketNumber} has been opened", TicketId = ticket.Id });
         await _db.SaveChangesAsync();
 
         await _emailSender.SendAsync(client.Email!, $"Your ticket #{ticket.TicketNumber} has been opened", EmailTemplates.TicketOpened(client.FirstName, ticket.TicketNumber));
         await _emailSender.SendAsync(assignee.Email!, $"Ticket #{ticket.TicketNumber} assigned to you", EmailTemplates.TicketAssigned(assignee.FirstName, ticket.TicketNumber, ticket.Title));
         await _notificationPublisher.PushToUserAsync(assignee.Id, "ticketAssigned", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+        await _notificationPublisher.PushToUserAsync(client.Id, "ticketOpened", new { ticket.Id, ticket.TicketNumber, ticket.Title });
 
         return Ok(await BuildDetailDto(id));
     }

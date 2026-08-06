@@ -276,8 +276,8 @@ export default function TicketsListPage() {
                   <SortTh colKey="ticketNumber" label="#" />
                   <SortTh colKey="title" label="Title" />
                   <SortTh colKey="createdAt" label="Created" />
-                  <th className="whitespace-nowrap px-3 py-1.5">Client</th>
-                  <SortTh colKey="priority" label="Priority" />
+                  {isStaff && <th className="whitespace-nowrap px-3 py-1.5">Client</th>}
+                  {isStaff && <SortTh colKey="priority" label="Priority" />}
                   <th className="whitespace-nowrap px-3 py-1.5">Assigned to</th>
                 </tr>
               </thead>
@@ -294,8 +294,8 @@ export default function TicketsListPage() {
                     <td className="whitespace-nowrap px-3 py-1.5 font-medium text-blue-700">#{t.ticketNumber}</td>
                     <td className="max-w-[220px] truncate px-3 py-1.5">{t.title}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">{format(new Date(t.createdAt), 'dd.MM.yyyy HH:mm')}</td>
-                    <td className="whitespace-nowrap px-3 py-1.5">
-                      {isStaff ? (
+                    {isStaff && (
+                      <td className="whitespace-nowrap px-3 py-1.5">
                         <Link
                           to={`/users/${t.clientId}`}
                           onClick={(e) => e.stopPropagation()}
@@ -303,19 +303,19 @@ export default function TicketsListPage() {
                         >
                           {t.clientName}
                         </Link>
-                      ) : (
-                        t.clientName
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-1.5">
-                      <PriorityBadge priority={t.priority} />
-                    </td>
+                      </td>
+                    )}
+                    {isStaff && (
+                      <td className="whitespace-nowrap px-3 py-1.5">
+                        <PriorityBadge priority={t.priority} />
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-3 py-1.5">{t.assignedToName ?? '—'}</td>
                   </tr>
                 ))}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-slate-400">
+                    <td colSpan={isStaff ? 6 : 4} className="px-3 py-8 text-center text-slate-400">
                       No tickets found.
                     </td>
                   </tr>

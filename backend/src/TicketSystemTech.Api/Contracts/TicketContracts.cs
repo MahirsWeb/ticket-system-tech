@@ -5,7 +5,8 @@ namespace TicketSystemTech.Api.Contracts;
 
 public record CreateTicketRequest(
     [Required, MaxLength(300)] string Title,
-    [Required] string Description
+    [Required] string Description,
+    [Required] Guid DepartmentId
 );
 
 /// <summary>Staff creates + opens a ticket in one step on behalf of a client who reported the issue verbally (e.g. by phone).</summary>
@@ -19,7 +20,7 @@ public record CreateTicketOnBehalfRequest(
     Guid? SubBranchId, // Required if the selected branch has sub-branches defined.
     [Required] Guid SlaPlanId,
     [Required] TicketPriority Priority,
-    [Required] DateTime DueDateUtc,
+    DateTime? DueDateUtc,
     [Required] Guid AssignedToUserId,
     Guid? CategoryId // Internal-only classification, staff/Admin — never shown to the client.
 );
@@ -31,7 +32,7 @@ public record OpenTicketRequest(
     Guid? SubBranchId, // Required if the selected branch has sub-branches defined.
     [Required] Guid SlaPlanId,
     [Required] TicketPriority Priority,
-    [Required] DateTime DueDateUtc,
+    DateTime? DueDateUtc,
     [Required] Guid AssignedToUserId,
     Guid? CategoryId // Internal-only classification, staff/Admin — never shown to the client.
 );

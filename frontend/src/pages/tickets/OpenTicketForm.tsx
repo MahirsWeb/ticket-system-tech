@@ -23,8 +23,9 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   const [source, setSource] = useState<TicketSource>('TicketSystem');
   const [priority, setPriority] = useState<TicketPriority>('Medium');
   const [helpTopicId, setHelpTopicId] = useState('');
-  // Non-admin staff can only open tickets into their own branch; Admin may pick any branch.
-  const [departmentId, setDepartmentId] = useState(isAdmin ? '' : user?.departmentId ?? '');
+  // Prefill from the branch the client already picked when submitting; otherwise fall back to the
+  // staff member's own branch (non-admin) or leave it empty for Admin to choose.
+  const [departmentId, setDepartmentId] = useState(ticket.departmentId ?? (isAdmin ? '' : user?.departmentId ?? ''));
   const [subBranchId, setSubBranchId] = useState('');
   const [slaPlanId, setSlaPlanId] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -41,7 +42,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         setSlaPlans(slas);
         setCategories(cats);
         if (topics[0]) setHelpTopicId(topics[0].id);
-        if (isAdmin && depts[0]) setDepartmentId(depts[0].id);
+        if (isAdmin && !departmentId && depts[0]) setDepartmentId(depts[0].id);
         if (slas[0]) setSlaPlanId(slas[0].id);
       }
     );
@@ -72,8 +73,8 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!helpTopicId || !departmentId || !slaPlanId || !dueDate || !assignedToUserId) {
-      setError('All fields are required to open a ticket.');
+    if (!helpTopicId || !departmentId || !slaPlanId || !assignedToUserId) {
+      setError('All fields except due date are required to open a ticket.');
       return;
     }
     if (subBranches.length > 0 && !subBranchId) {
@@ -89,7 +90,7 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         subBranchId: subBranchId || undefined,
         slaPlanId,
         priority,
-        dueDateUtc: new Date(`${dueDate}T23:59:59`).toISOString(),
+        dueDateUtc: dueDate ? new Date(`${dueDate}T23:59:59`).toISOString() : null,
         assignedToUserId,
         categoryId: categoryId || undefined,
       });

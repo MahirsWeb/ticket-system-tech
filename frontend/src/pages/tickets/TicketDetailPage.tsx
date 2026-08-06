@@ -74,7 +74,7 @@ export default function TicketDetailPage() {
             #{ticket.ticketNumber} — {ticket.title}
           </h1>
           <StatusBadge status={ticket.status} />
-          <PriorityBadge priority={ticket.priority} />
+          {isStaff && <PriorityBadge priority={ticket.priority} />}
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Submitted by{' '}
@@ -95,7 +95,7 @@ export default function TicketDetailPage() {
             <InfoRow label="Help topic" value={ticket.helpTopicName} />
             <InfoRow label="Branch" value={ticket.departmentName} />
             <InfoRow label="Sub-branch" value={ticket.subBranchName} />
-            <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />
+            {isStaff && <InfoRow label="Due date" value={ticket.dueDateUtc ? format(new Date(ticket.dueDateUtc), 'dd.MM.yyyy HH:mm') : null} />}
             <InfoRow label="Opened at" value={ticket.openedAtUtc ? format(new Date(ticket.openedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
             <InfoRow label="Closed at" value={ticket.closedAtUtc ? format(new Date(ticket.closedAtUtc), 'dd.MM.yyyy HH:mm') : null} />
             {isStaff && <InfoRow label="SLA plan" value={ticket.slaPlanName} />}
