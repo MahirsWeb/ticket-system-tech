@@ -128,20 +128,14 @@ export function OpenTicketForm({ ticket, onOpened }: { ticket: TicketDetailDto; 
         </div>
         <div>
           <Label>Branch</Label>
-          {isAdmin ? (
-            <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-              <option value="">Select a branch…</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {user?.departmentName ?? 'No branch assigned'}
-            </div>
-          )}
+          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+            <option value="">Select a branch…</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
         </div>
         {subBranches.length > 0 && (
           <div>

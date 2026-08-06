@@ -50,6 +50,9 @@ public class TicketsController : ControllerBase
         var department = await _db.Departments.FirstOrDefaultAsync(d => d.Id == request.DepartmentId && d.IsActive);
         if (department is null) return BadRequest(new { message = "Please select a valid branch." });
 
+        var client = await _db.Users.FirstAsync(u => u.Id == clientId);
+        var company = await _db.Companies.FirstAsync(c => c.Id == companyId.Value);
+
         var ticket = new Ticket
         {
             TicketNumber = await _ticketNumberGenerator.NextAsync(),
@@ -63,7 +66,7 @@ public class TicketsController : ControllerBase
         _db.Tickets.Add(ticket);
         await _db.SaveChangesAsync();
 
-        // Ticket is routed to the branch the client picked — only that branch's staff are notified for triage.
+        // Ticket is routed to the branch the client picked — only that branch's staff are notified/emailed for triage.
         var staff = await _db.Users.Where(u => u.Role == UserRole.Employee && u.IsActive && u.DepartmentId == department.Id).ToListAsync();
         foreach (var member in staff)
         {
@@ -77,7 +80,11 @@ public class TicketsController : ControllerBase
         }
         await _db.SaveChangesAsync();
         foreach (var member in staff)
+        {
+            await _emailSender.SendAsync(member.Email!, $"New ticket #{ticket.TicketNumber} submitted — {company.Name}",
+                EmailTemplates.NewTicketSubmitted(member.FirstName, ticket.TicketNumber, ticket.Title, $"{client.FirstName} {client.LastName}", company.Name));
             await _notificationPublisher.PushToUserAsync(member.Id, "newTicket", new { ticket.Id, ticket.TicketNumber, ticket.Title });
+        }
 
         return Ok(await BuildDetailDto(ticket.Id));
     }
@@ -311,10 +318,8 @@ public class TicketsController : ControllerBase
         if (ticket is null) return NotFound();
         if (ticket.Status != TicketStatus.New) return BadRequest(new { message = "Only new tickets can be opened." });
 
-        // Non-admin staff can only route a ticket into their own branch; moving it elsewhere later requires an explicit transfer.
-        if (_currentUser.Role != UserRole.Admin && request.DepartmentId != _currentUser.DepartmentId)
-            return BadRequest(new { message = "You can only open tickets into your own branch." });
-
+        // The client's branch pick is only a suggestion — any staff member (not just Admin) can correct it
+        // here, since clients don't always know which branch actually owns their issue.
         var subBranchError = await ValidateSubBranchAsync(request.DepartmentId, request.SubBranchId);
         if (subBranchError is not null) return BadRequest(new { message = subBranchError });
 

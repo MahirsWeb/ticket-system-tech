@@ -68,6 +68,17 @@ public static class EmailTemplates
         $"Your ticket #{ticketNumber} has been opened",
         $"<p>Hi {clientFirstName},</p><p>Your support ticket <b>#{ticketNumber}</b> has been received and opened. Someone from our team will get back to you as soon as possible.</p>");
 
+    public static string NewTicketSubmitted(string recipientFirstName, string ticketNumber, string ticketTitle, string clientName, string companyName) => Wrap(
+        $"New ticket #{ticketNumber} submitted — {companyName}",
+        $"""
+        <p>Hi {recipientFirstName},</p>
+        <p>A new ticket has been submitted to your branch by <b>{clientName}</b> from <b>{companyName}</b>:</p>
+        <p style="margin:16px 0;padding:14px 18px;background:#f2f4f7;border-radius:6px;">
+          <b>#{ticketNumber}</b> — {ticketTitle}
+        </p>
+        <p>Please review and open it in the ticket system.</p>
+        """);
+
     public static string TicketAssigned(string agentFirstName, string ticketNumber, string ticketTitle) => Wrap(
         $"Ticket #{ticketNumber} assigned to you",
         $"<p>Hi {agentFirstName},</p><p>Ticket <b>#{ticketNumber}</b> — \"{ticketTitle}\" — has been assigned to you. Please review it in the ticket system.</p>");
