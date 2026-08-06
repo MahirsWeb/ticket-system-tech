@@ -214,7 +214,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-300 bg-slate-200 px-4 py-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
           {!isAdmin && user?.departmentName && (
