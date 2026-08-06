@@ -381,7 +381,7 @@ export default function UserDetailPage() {
                         #{t.ticketNumber}
                       </Link>
                     </td>
-                    <td className="max-w-xs truncate px-3 py-1.5">{t.title}</td>
+                    <td className="max-w-[220px] truncate px-3 py-1.5">{t.title}</td>
                     <td className="whitespace-nowrap px-3 py-1.5">
                       <StatusBadge status={t.status} />
                     </td>

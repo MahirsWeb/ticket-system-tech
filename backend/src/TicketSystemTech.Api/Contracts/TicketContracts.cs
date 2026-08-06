@@ -79,7 +79,7 @@ public record TransferTicketBranchRequest(
 
 public record PagedResult<T>(List<T> Items, int Page, int PageSize, int TotalCount);
 
-public record TicketCountsDto(int Total, int New, int Opened, int Closed);
+public record TicketCountsDto(int Total, int New, int Opened, int Closed, int Mine);
 
 public record TicketAttachmentDto(Guid Id, string FileName, string FileUrl, long FileSizeBytes, string ContentType, DateTime CreatedAt);
 

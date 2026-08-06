@@ -36,6 +36,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 function TicketsNavItem({ to, label }: { to: string; label: string }) {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [counts, setCounts] = useState<TicketCountsDto | null>(null);
 
   function load() {
@@ -46,8 +47,9 @@ function TicketsNavItem({ to, label }: { to: string; label: string }) {
     load();
   }, []);
 
-  const rows: { label: string; value: number | undefined; status?: string }[] = [
+  const rows: { label: string; value: number | undefined; status?: string; mine?: boolean }[] = [
     { label, value: counts?.total },
+    ...(user?.role === 'Employee' ? [{ label: 'My tickets', value: counts?.mine, status: 'Open,InProgress,Resolved', mine: true }] : []),
     { label: 'Opened', value: counts?.opened, status: 'Open,InProgress,Resolved' },
     { label: 'Closed', value: counts?.closed, status: 'Closed' },
     { label: 'New', value: counts?.new, status: 'New' },
@@ -80,7 +82,11 @@ function TicketsNavItem({ to, label }: { to: string; label: string }) {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                navigate(r.status ? `/tickets?status=${encodeURIComponent(r.status)}` : '/tickets');
+                const params = new URLSearchParams();
+                if (r.status) params.set('status', r.status);
+                if (r.mine) params.set('mine', '1');
+                const qs = params.toString();
+                navigate(qs ? `/tickets?${qs}` : '/tickets');
               }}
               className="flex cursor-pointer items-center justify-between px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50"
             >

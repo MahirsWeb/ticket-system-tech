@@ -268,7 +268,13 @@ public class TicketsController : ControllerBase
         var openedCount = CountOf(TicketStatus.Open, TicketStatus.InProgress, TicketStatus.Resolved);
         var closedCount = CountOf(TicketStatus.Closed);
 
-        return Ok(new TicketCountsDto(newCount + openedCount + closedCount, newCount, openedCount, closedCount));
+        var openedStatuses = new[] { TicketStatus.Open, TicketStatus.InProgress, TicketStatus.Resolved };
+        var mineCount = _currentUser.UserId.HasValue
+            ? await query.CountAsync(t => openedStatuses.Contains(t.Status) &&
+                (t.AssignedToUserId == _currentUser.UserId.Value || t.Assignees.Any(a => a.UserId == _currentUser.UserId.Value)))
+            : 0;
+
+        return Ok(new TicketCountsDto(newCount + openedCount + closedCount, newCount, openedCount, closedCount, mineCount));
     }
 
     private static List<TicketStatus> ParseStatuses(string? raw)

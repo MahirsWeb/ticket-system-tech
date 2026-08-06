@@ -148,6 +148,7 @@ export interface TicketCountsDto {
   new: number;
   opened: number;
   closed: number;
+  mine: number;
 }
 
 export interface TicketDetailDto {

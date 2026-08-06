@@ -42,13 +42,13 @@ export default function TicketsListPage() {
   const isAdmin = user?.role === 'Admin';
   const isEmployee = user?.role === 'Employee';
   const isStaff = isAdmin || isEmployee;
-  const [mineOnly, setMineOnly] = useState(false);
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get('status') ?? '';
   const answeredParam = searchParams.get('answered') === '1';
+  const mineOnly = searchParams.get('mine') === '1';
   const activeTab: TicketTab = answeredParam
     ? 'answered'
     : statusParam === 'New'
@@ -89,9 +89,15 @@ export default function TicketsListPage() {
     setPage(1);
   }
 
-  useEffect(() => {
+  function toggleMine() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (mineOnly) next.delete('mine');
+      else next.set('mine', '1');
+      return next;
+    });
     setPage(1);
-  }, [mineOnly]);
+  }
 
   const effectiveAssignedToUserId = mineOnly ? user?.id : assignedToUserId || undefined;
 
@@ -215,7 +221,7 @@ export default function TicketsListPage() {
             </Select>
           </div>
         )}
-        {isStaff && !mineOnly && (
+        {isStaff && !mineOnly && activeTab !== 'new' && (
           <div className="w-52">
             <Select
               value={assignedToUserId}
@@ -240,7 +246,7 @@ export default function TicketsListPage() {
         {isEmployee && (
           <button
             type="button"
-            onClick={() => setMineOnly((v) => !v)}
+            onClick={toggleMine}
             className={clsx(
               'rounded-full border px-3 py-2 text-xs font-medium',
               mineOnly ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-slate-300 text-slate-500 hover:border-slate-400'
@@ -285,7 +291,7 @@ export default function TicketsListPage() {
                         #{t.ticketNumber}
                       </Link>
                     </td>
-                    <td className="max-w-xs truncate px-3 py-1.5">{t.title}</td>
+                    <td className="max-w-[220px] truncate px-3 py-1.5">{t.title}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">{format(new Date(t.createdAt), 'dd.MM.yyyy HH:mm')}</td>
                     <td className="whitespace-nowrap px-3 py-1.5">{t.clientName}</td>
                     <td className="whitespace-nowrap px-3 py-1.5">
