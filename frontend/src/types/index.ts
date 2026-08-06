@@ -120,6 +120,7 @@ export interface TicketListItem {
   status: TicketStatus;
   priority: TicketPriority | null;
   companyName: string;
+  clientId: string;
   clientName: string;
   assignedToName: string | null;
   createdAt: string;

@@ -236,6 +236,7 @@ public class TicketsController : ControllerBase
         var items = page_.Select(t => new TicketListItem(
             t.Id, t.TicketNumber, t.Title, t.Status.ToString(), t.Priority?.ToString(),
             companies.GetValueOrDefault(t.CompanyId, ""),
+            t.ClientId,
             users.GetValueOrDefault(t.ClientId, ""),
             t.AssignedToUserId.HasValue ? users.GetValueOrDefault(t.AssignedToUserId.Value) : null,
             t.CreatedAt, t.DueDateUtc, t.ClosedAtUtc,

@@ -62,6 +62,7 @@ public record TicketListItem(
     string Status,
     string? Priority,
     string CompanyName,
+    Guid ClientId,
     string ClientName,
     string? AssignedToName,
     DateTime CreatedAt,

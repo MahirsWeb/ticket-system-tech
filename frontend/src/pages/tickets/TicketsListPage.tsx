@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { ticketsApi } from '../../api/tickets';
 import { lookupsApi } from '../../api/lookups';
@@ -38,6 +38,7 @@ function tabToParams(tab: TicketTab): { status?: string; answered?: string } {
 }
 
 export default function TicketsListPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'Admin';
   const isEmployee = user?.role === 'Employee';
@@ -99,7 +100,7 @@ export default function TicketsListPage() {
     setPage(1);
   }
 
-  const effectiveAssignedToUserId = mineOnly ? user?.id : assignedToUserId || undefined;
+  const effectiveAssignedToUserId = mineOnly && activeTab !== 'new' ? user?.id : assignedToUserId || undefined;
 
   useEffect(() => {
     setLoading(true);
@@ -243,7 +244,7 @@ export default function TicketsListPage() {
             </Select>
           </div>
         )}
-        {isEmployee && (
+        {isEmployee && activeTab !== 'new' && (
           <button
             type="button"
             onClick={toggleMine}
@@ -284,16 +285,28 @@ export default function TicketsListPage() {
                 {items.map((t, i) => (
                   <tr
                     key={t.id}
-                    className={clsx('border-t border-slate-100 transition-colors hover:bg-slate-200', i % 2 === 1 && 'bg-slate-100')}
+                    onClick={() => navigate(`/tickets/${t.id}`)}
+                    className={clsx(
+                      'cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-200',
+                      i % 2 === 1 && 'bg-slate-100'
+                    )}
                   >
-                    <td className="whitespace-nowrap px-3 py-1.5">
-                      <Link to={`/tickets/${t.id}`} className="font-medium text-blue-700 hover:underline">
-                        #{t.ticketNumber}
-                      </Link>
-                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 font-medium text-blue-700">#{t.ticketNumber}</td>
                     <td className="max-w-[220px] truncate px-3 py-1.5">{t.title}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-slate-500">{format(new Date(t.createdAt), 'dd.MM.yyyy HH:mm')}</td>
-                    <td className="whitespace-nowrap px-3 py-1.5">{t.clientName}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5">
+                      {isStaff ? (
+                        <Link
+                          to={`/users/${t.clientId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-blue-700 hover:underline"
+                        >
+                          {t.clientName}
+                        </Link>
+                      ) : (
+                        t.clientName
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-1.5">
                       <PriorityBadge priority={t.priority} />
                     </td>
