@@ -102,7 +102,7 @@ export default function TicketDetailPage() {
             {isStaff && <InfoRow label="Category" value={ticket.categoryName} />}
           </div>
           {isStaff && (
-            <div className="mt-4 grid grid-cols-1 items-start gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+            <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
               <TicketAssigneesPanel ticket={ticket} onChanged={setTicket} />
               <WorkTimeEditor ticket={ticket} onChanged={setTicket} />
             </div>
