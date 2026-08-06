@@ -11,7 +11,6 @@ import {
   isSameMonth,
   isWithinInterval,
   startOfMonth,
-  startOfQuarter,
   startOfWeek,
   startOfYear,
   subDays,
@@ -34,7 +33,6 @@ const PRESETS: { label: string; range: () => [Date, Date] }[] = [
   { label: 'Yesterday', range: () => [subDays(new Date(), 1), subDays(new Date(), 1)] },
   { label: 'This week', range: () => [startOfWeek(new Date(), { weekStartsOn: 1 }), new Date()] },
   { label: 'This month', range: () => [startOfMonth(new Date()), new Date()] },
-  { label: 'This quarter', range: () => [startOfQuarter(new Date()), new Date()] },
   { label: 'This year', range: () => [startOfYear(new Date()), new Date()] },
 ];
 
@@ -179,7 +177,7 @@ export function DateRangePicker({
             )}
           </div>
 
-          <div className="p-3">
+          <div className="w-64 shrink-0 p-3">
             <div className="mb-2 flex items-center justify-between">
               <button
                 type="button"
