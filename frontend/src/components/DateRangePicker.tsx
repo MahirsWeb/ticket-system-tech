@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addMonths,
+  addYears,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -15,6 +16,7 @@ import {
   startOfYear,
   subDays,
   subMonths,
+  subYears,
 } from 'date-fns';
 
 function atStartOfDay(d: Date) {
@@ -37,6 +39,8 @@ const PRESETS: { label: string; range: () => [Date, Date] }[] = [
 ];
 
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const YEAR_BLOCK_SIZE = 12;
 
 /// Single-popover "from – to" range picker: pick a start day, optionally an end day (defaults to
 /// today if you don't), or jump straight to a preset. Replaces the old two-native-input version
@@ -55,6 +59,7 @@ export function DateRangePicker({
   clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<'days' | 'months' | 'years'>('days');
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(from ?? new Date()));
   const [pendingStart, setPendingStart] = useState<Date | null>(from);
   const [pendingEnd, setPendingEnd] = useState<Date | null>(to);
@@ -66,6 +71,7 @@ export function DateRangePicker({
     setPendingStart(from);
     setPendingEnd(to);
     setViewMonth(startOfMonth(from ?? new Date()));
+    setView('days');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -117,6 +123,8 @@ export function DateRangePicker({
     const end = endOfWeek(endOfMonth(viewMonth), { weekStartsOn: 1 });
     return eachDayOfInterval({ start, end });
   }, [viewMonth]);
+
+  const yearBlockStart = viewMonth.getFullYear() - (viewMonth.getFullYear() % YEAR_BLOCK_SIZE);
 
   const rangeStart = pendingStart;
   const rangeEnd = pendingEnd ?? (pendingStart && hoverDay && isAfter(hoverDay, pendingStart) ? hoverDay : null);
@@ -178,60 +186,158 @@ export function DateRangePicker({
           </div>
 
           <div className="w-64 shrink-0 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setViewMonth((m) => subMonths(m, 1))}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                ‹
-              </button>
-              <div className="text-sm font-semibold text-slate-700">{format(viewMonth, 'MMMM yyyy')}</div>
-              <button
-                type="button"
-                onClick={() => setViewMonth((m) => addMonths(m, 1))}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                ›
-              </button>
-            </div>
-            <div className="grid grid-cols-7 gap-0.5 text-center text-[11px] font-semibold text-slate-400">
-              {WEEKDAY_LABELS.map((d) => (
-                <div key={d} className="py-1">
-                  {d}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-0.5">
-              {days.map((day) => {
-                const inMonth = isSameMonth(day, viewMonth);
-                const isStart = rangeStart && isSameDay(day, rangeStart);
-                const isEnd = rangeEnd && isSameDay(day, rangeEnd);
-                const inRange = rangeStart && rangeEnd && isWithinInterval(day, { start: rangeStart, end: rangeEnd });
-                const isFuture = isAfter(atStartOfDay(day), atStartOfDay(new Date()));
-                return (
+            {view === 'days' && (
+              <>
+                <div className="mb-2 flex items-center justify-between">
                   <button
-                    key={day.toISOString()}
                     type="button"
-                    disabled={isFuture}
-                    onMouseEnter={() => setHoverDay(day)}
-                    onClick={() => pickDay(day)}
-                    className={[
-                      'h-7 w-7 rounded-md text-xs',
-                      !inMonth && 'text-slate-300',
-                      inMonth && !isStart && !isEnd && !inRange && 'text-slate-700 hover:bg-slate-100',
-                      inRange && !isStart && !isEnd && 'bg-blue-50 text-blue-700',
-                      (isStart || isEnd) && 'bg-blue-700 font-semibold text-white hover:bg-blue-800',
-                      isFuture && 'cursor-not-allowed text-slate-200 hover:bg-transparent',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
+                    onClick={() => setViewMonth((m) => subMonths(m, 1))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                   >
-                    {format(day, 'd')}
+                    ‹
                   </button>
-                );
-              })}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => setView('months')}
+                    className="rounded px-2 py-0.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {format(viewMonth, 'MMMM yyyy')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((m) => addMonths(m, 1))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-0.5 text-center text-[11px] font-semibold text-slate-400">
+                  {WEEKDAY_LABELS.map((d) => (
+                    <div key={d} className="py-1">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-0.5">
+                  {days.map((day) => {
+                    const inMonth = isSameMonth(day, viewMonth);
+                    const isStart = rangeStart && isSameDay(day, rangeStart);
+                    const isEnd = rangeEnd && isSameDay(day, rangeEnd);
+                    const inRange = rangeStart && rangeEnd && isWithinInterval(day, { start: rangeStart, end: rangeEnd });
+                    const isFuture = isAfter(atStartOfDay(day), atStartOfDay(new Date()));
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        type="button"
+                        disabled={isFuture}
+                        onMouseEnter={() => setHoverDay(day)}
+                        onClick={() => pickDay(day)}
+                        className={[
+                          'h-7 w-7 rounded-md text-xs',
+                          !inMonth && 'text-slate-300',
+                          inMonth && !isStart && !isEnd && !inRange && 'text-slate-700 hover:bg-slate-100',
+                          inRange && !isStart && !isEnd && 'bg-blue-50 text-blue-700',
+                          (isStart || isEnd) && 'bg-blue-700 font-semibold text-white hover:bg-blue-800',
+                          isFuture && 'cursor-not-allowed text-slate-200 hover:bg-transparent',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        {format(day, 'd')}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {view === 'months' && (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((m) => subYears(m, 1))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView('years')}
+                    className="rounded px-2 py-0.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {format(viewMonth, 'yyyy')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((m) => addYears(m, 1))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {MONTH_LABELS.map((label, idx) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        setViewMonth(new Date(viewMonth.getFullYear(), idx, 1));
+                        setView('days');
+                      }}
+                      className={[
+                        'rounded-md py-2 text-xs',
+                        idx === viewMonth.getMonth() ? 'bg-blue-700 font-semibold text-white hover:bg-blue-800' : 'text-slate-700 hover:bg-slate-100',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {view === 'years' && (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((m) => subYears(m, YEAR_BLOCK_SIZE))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    ‹
+                  </button>
+                  <div className="text-sm font-semibold text-slate-700">
+                    {yearBlockStart} – {yearBlockStart + YEAR_BLOCK_SIZE - 1}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((m) => addYears(m, YEAR_BLOCK_SIZE))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {Array.from({ length: YEAR_BLOCK_SIZE }, (_, i) => yearBlockStart + i).map((year) => (
+                    <button
+                      key={year}
+                      type="button"
+                      onClick={() => {
+                        setViewMonth(new Date(year, viewMonth.getMonth(), 1));
+                        setView('months');
+                      }}
+                      className={[
+                        'rounded-md py-2 text-xs',
+                        year === viewMonth.getFullYear() ? 'bg-blue-700 font-semibold text-white hover:bg-blue-800' : 'text-slate-700 hover:bg-slate-100',
+                      ].join(' ')}
+                    >
+                      {year}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

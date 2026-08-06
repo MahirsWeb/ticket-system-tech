@@ -124,8 +124,10 @@ public class KnowledgeBaseController : ControllerBase
             .ToList();
 
         var ticketIds = scored.Select(s => s.TicketId).ToList();
+        // Open tickets have been triaged but no work has started yet, so they never have resolution
+        // notes worth surfacing as an answer — skip them (InProgress/Resolved/Closed are fair game).
         var tickets = await _db.Tickets.AsNoTracking()
-            .Where(t => ticketIds.Contains(t.Id))
+            .Where(t => ticketIds.Contains(t.Id) && t.Status != TicketStatus.Open)
             .ToDictionaryAsync(t => t.Id, t => t);
 
         return scored
@@ -179,7 +181,7 @@ public class KnowledgeBaseController : ControllerBase
 
         var ticketIds = scored.Select(s => s.TicketId!.Value).ToList();
         var tickets = await _db.Tickets.AsNoTracking()
-            .Where(t => ticketIds.Contains(t.Id))
+            .Where(t => ticketIds.Contains(t.Id) && t.Status != TicketStatus.Open)
             .ToDictionaryAsync(t => t.Id, t => t);
 
         return scored
