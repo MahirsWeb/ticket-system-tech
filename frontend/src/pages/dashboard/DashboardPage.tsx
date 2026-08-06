@@ -304,7 +304,7 @@ export default function DashboardPage() {
               </div>
             )}
             {ganttMode === 'person' ? (
-              <div className="w-56">
+              <div className="w-72">
                 <Select value={ganttUserId} onChange={(e) => setGanttUserId(e.target.value)}>
                   <option value="">Select a person…</option>
                   {employeesByBranch.map(([branchName, group]) => (
