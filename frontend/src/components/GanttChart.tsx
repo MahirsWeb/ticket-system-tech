@@ -79,7 +79,7 @@ export function GanttChart({ entries, date }: { entries: GanttEntryDto[]; date: 
   const tasks = entries.filter((e) => e.type === 'WorkTask');
   const nowPct = isToday && now >= rangeStart && now <= rangeEnd ? pct(now) : null;
 
-  const ROW_HEIGHT = 40; // 36px block + 4px gap
+  const ROW_HEIGHT = 28; // 24px block + 4px gap
 
   function Lane({ items, colors, emptyLabel }: { items: GanttEntryDto[]; colors: Record<string, string>; emptyLabel: string }) {
     // Greedily pack time-overlapping items into separate sub-rows (earliest start first) so
@@ -104,7 +104,7 @@ export function GanttChart({ entries, date }: { entries: GanttEntryDto[]; date: 
       return { entry, start, end, row };
     });
     const rowCount = Math.max(1, rowEnds.length);
-    const laneHeight = rowCount * ROW_HEIGHT + 8;
+    const laneHeight = rowCount * ROW_HEIGHT + 4;
 
     return (
       <div className="relative rounded-md bg-slate-50" style={{ height: laneHeight }}>
@@ -125,12 +125,12 @@ export function GanttChart({ entries, date }: { entries: GanttEntryDto[]; date: 
               onMouseEnter={() => setHovered(e)}
               onMouseLeave={() => setHovered(null)}
               className={clsx(
-                'absolute flex h-9 items-center overflow-hidden rounded-md px-2 shadow-sm transition-transform hover:z-20 hover:scale-[1.03]',
+                'absolute flex h-6 items-center overflow-hidden rounded-md px-2 shadow-sm transition-transform hover:z-20 hover:scale-[1.03]',
                 ongoing && 'ring-2 ring-white ring-offset-1 ring-offset-red-400'
               )}
-              style={{ left: `${left}%`, width: `${width}%`, top: 4 + row * ROW_HEIGHT, background: colors[e.status] ?? '#64748b' }}
+              style={{ left: `${left}%`, width: `${width}%`, top: 2 + row * ROW_HEIGHT, background: colors[e.status] ?? '#64748b' }}
             >
-              <span className="truncate text-[11px] font-semibold text-white">{e.title}</span>
+              <span className="truncate text-[10px] font-semibold text-white">{e.title}</span>
             </div>
           );
         })}
