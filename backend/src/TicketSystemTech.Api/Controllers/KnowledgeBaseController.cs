@@ -35,16 +35,27 @@ public class KnowledgeBaseController : ControllerBase
         _embeddingService = embeddingService;
     }
 
-    /// <summary>Backfills the knowledge base for tickets that predate KB indexing (e.g. closed before this feature shipped).</summary>
+    /// <summary>
+    /// Backfills the knowledge base for tickets that predate KB indexing (e.g. closed before this feature
+    /// shipped, or bulk-imported directly into the database). Skips tickets that already have an embedded
+    /// chunk, so re-running after a partial/rate-limited run only processes what's still missing instead
+    /// of redoing everything from scratch.
+    /// </summary>
     [HttpPost("reindex-all")]
     [Authorize(Roles = nameof(UserRole.Admin))]
     public async Task<IActionResult> ReindexAll()
     {
-        var ticketIds = await _db.Tickets.AsNoTracking().Select(t => t.Id).ToListAsync();
+        var allTicketIds = await _db.Tickets.AsNoTracking().Select(t => t.Id).ToListAsync();
+        var alreadyEmbedded = await _db.KnowledgeBaseChunks.AsNoTracking()
+            .Where(c => c.TicketId != null && c.Embedding != null)
+            .Select(c => c.TicketId!.Value)
+            .ToListAsync();
+        var ticketIds = allTicketIds.Except(alreadyEmbedded).ToList();
+
         foreach (var id in ticketIds)
             await _indexer.IndexTicketAsync(id);
 
-        return Ok(new { indexed = ticketIds.Count });
+        return Ok(new { indexed = ticketIds.Count, skipped = allTicketIds.Count - ticketIds.Count });
     }
 
     /// <summary>
