@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using TicketSystemTech.Application.Common.Interfaces;
@@ -180,8 +181,11 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var seedPasswordGenerator = scope.ServiceProvider.GetRequiredService<ITemporaryPasswordGenerator>();
+    var tempPasswordOptions = scope.ServiceProvider.GetRequiredService<IOptions<TemporaryPasswordOptions>>();
     await db.Database.MigrateAsync();
-    await TicketSystemTech.Infrastructure.Persistence.DbSeeder.SeedAsync(db, userManager, startupLogger);
+    await TicketSystemTech.Infrastructure.Persistence.DbSeeder.SeedAsync(
+        db, userManager, startupLogger, builder.Configuration, seedPasswordGenerator, tempPasswordOptions);
 }
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
