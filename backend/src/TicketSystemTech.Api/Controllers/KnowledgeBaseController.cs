@@ -78,7 +78,7 @@ public class KnowledgeBaseController : ControllerBase
     [HttpPost("ask")]
     public async Task<ActionResult<KnowledgeBaseAskResponseDto>> Ask(KnowledgeBaseAskRequest request)
     {
-        var matches = await FindMatchesAsync(request.Question, 8);
+        var matches = await FindMatchesAsync(request.Question, 20);
         var sources = matches.Select(ToDto).ToList();
 
         if (matches.Count == 0)

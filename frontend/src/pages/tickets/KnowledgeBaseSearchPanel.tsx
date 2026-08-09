@@ -10,12 +10,16 @@ export function KnowledgeBaseSearchPanel({ initialQuery }: { initialQuery: strin
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [asked, setAsked] = useState(false);
+  const [showAllSources, setShowAllSources] = useState(false);
+
+  const SOURCES_PREVIEW_COUNT = 7;
 
   async function handleAsk(e?: React.FormEvent) {
     e?.preventDefault();
     if (!query.trim()) return;
     setLoading(true);
     setAsked(true);
+    setShowAllSources(false);
     try {
       const res = await knowledgeBaseApi.ask(query);
       setAnswer(res.answer);
@@ -74,7 +78,7 @@ export function KnowledgeBaseSearchPanel({ initialQuery }: { initialQuery: strin
         <>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Similar tickets used as context</div>
           <ul className="space-y-2">
-            {sources.slice(0, 10).map((r) => (
+            {(showAllSources ? sources : sources.slice(0, SOURCES_PREVIEW_COUNT)).map((r) => (
               <li key={r.ticketId}>
                 <a
                   href={`/tickets/${r.ticketId}`}
@@ -91,6 +95,14 @@ export function KnowledgeBaseSearchPanel({ initialQuery }: { initialQuery: strin
               </li>
             ))}
           </ul>
+          {!showAllSources && sources.length > SOURCES_PREVIEW_COUNT && (
+            <button
+              className="mt-2 text-xs font-medium text-blue-700 hover:underline"
+              onClick={() => setShowAllSources(true)}
+            >
+              See more ({sources.length - SOURCES_PREVIEW_COUNT} more)
+            </button>
+          )}
         </>
       )}
 
