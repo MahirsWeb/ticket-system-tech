@@ -133,20 +133,23 @@ export default function TicketDetailPage() {
 
       {ticket.status === 'Closed' && (
         <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Resolution</h2>
-            {canReopen && (
-              <Button variant="secondary" className="shrink-0 text-xs" disabled={reopening} onClick={() => setConfirmReopen(true)}>
-                {reopening ? 'Reopening…' : 'Reopen ticket'}
-              </Button>
-            )}
-          </div>
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Resolution</h2>
           <p className="whitespace-pre-wrap text-sm text-slate-800">{ticket.resolutionSummary}</p>
           {canSeeInternalNotes && ticket.technicalNotes && (
             <div className="mt-3 rounded-md bg-slate-50 p-3">
               <div className="mb-1 text-xs font-semibold uppercase text-slate-400">Technical / code-change log</div>
               <p className="whitespace-pre-wrap text-sm text-slate-700">{ticket.technicalNotes}</p>
             </div>
+          )}
+          {canReopen && (
+            <button
+              type="button"
+              disabled={reopening}
+              onClick={() => setConfirmReopen(true)}
+              className="mt-3 text-xs text-slate-400 hover:text-slate-600 hover:underline disabled:opacity-50"
+            >
+              {reopening ? 'Reopening…' : 'Reopen ticket…'}
+            </button>
           )}
         </Card>
       )}
