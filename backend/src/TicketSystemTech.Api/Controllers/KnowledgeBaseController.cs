@@ -78,7 +78,7 @@ public class KnowledgeBaseController : ControllerBase
     [HttpPost("ask")]
     public async Task<ActionResult<KnowledgeBaseAskResponseDto>> Ask(KnowledgeBaseAskRequest request)
     {
-        var matches = await FindMatchesAsync(request.Question, 20);
+        var matches = await FindMatchesAsync(request.Question, 50);
         var sources = matches.Select(ToDto).ToList();
 
         if (matches.Count == 0)
@@ -130,12 +130,13 @@ public class KnowledgeBaseController : ControllerBase
 
         var internalNoteTicketIds = await GetTicketIdsWithInternalNoteAsync();
 
+        // Only tickets with an internal note actually document what the problem/fix was — a bare
+        // title+description match with no note gives the consultant nothing to act on, so it never
+        // qualifies as a source, no matter how textually similar it looks.
         var scored = candidates
+            .Where(c => internalNoteTicketIds.Contains(c.TicketId))
             .Select(c => new { c.TicketId, c.Content, Similarity = CosineSimilarity(queryEmbedding, c.Embedding!) })
-            // Tickets with an internal note take priority — that's where staff document the actual
-            // troubleshooting/fix, so they make far better AI answers than a title/description match alone.
-            .OrderByDescending(x => internalNoteTicketIds.Contains(x.TicketId))
-            .ThenByDescending(x => x.Similarity)
+            .OrderByDescending(x => x.Similarity)
             .Take(Math.Clamp(take, 1, 50))
             .ToList();
 
@@ -194,10 +195,10 @@ public class KnowledgeBaseController : ControllerBase
         var internalNoteTicketIds = await GetTicketIdsWithInternalNoteAsync();
 
         var scored = candidates
+            .Where(c => c.TicketId.HasValue && internalNoteTicketIds.Contains(c.TicketId.Value))
             .Select(c => new { c.TicketId, c.Content, Score = keywords.Count(k => c.Content.Contains(k, StringComparison.OrdinalIgnoreCase)) })
             .Where(x => x.Score > 0)
-            .OrderByDescending(x => x.TicketId.HasValue && internalNoteTicketIds.Contains(x.TicketId.Value))
-            .ThenByDescending(x => x.Score)
+            .OrderByDescending(x => x.Score)
             .Take(Math.Clamp(take, 1, 50))
             .ToList();
 
