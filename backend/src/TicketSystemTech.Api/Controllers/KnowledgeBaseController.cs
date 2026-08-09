@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -95,11 +96,19 @@ public class KnowledgeBaseController : ControllerBase
             (string.IsNullOrWhiteSpace(m.Ticket.ResolutionSummary) ? "" : $"\nResolution: {m.Ticket.ResolutionSummary}")));
 
         var answer = await _chatCompletionService.AskAsync(SystemInstruction, context, request.Question);
+        var finalAnswer = answer ?? "AI answering isn't configured yet — showing the closest matching tickets instead.";
 
-        return Ok(new KnowledgeBaseAskResponseDto(
-            answer ?? "AI answering isn't configured yet — showing the closest matching tickets instead.",
-            sources));
+        // Tickets the AI explicitly called out by number (e.g. its "might help" fallback list) are the
+        // ones most worth a consultant's attention — surface them first in the sources list.
+        var mentionedTicketNumbers = ExtractMentionedTicketNumbers(finalAnswer);
+        if (mentionedTicketNumbers.Count > 0)
+            sources = sources.OrderByDescending(s => mentionedTicketNumbers.Contains(s.TicketNumber)).ToList();
+
+        return Ok(new KnowledgeBaseAskResponseDto(finalAnswer, sources));
     }
+
+    private static HashSet<string> ExtractMentionedTicketNumbers(string answer) =>
+        Regex.Matches(answer, @"#(\d+)").Select(m => m.Groups[1].Value).ToHashSet();
 
     private record ChunkMatch(Ticket Ticket, string Content, int Score);
 
