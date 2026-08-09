@@ -14,6 +14,11 @@ using TicketSystemTech.Infrastructure.Persistence;
 using TicketSystemTech.Infrastructure.Services;
 using TicketSystemTech.Api.Realtime;
 
+// Disable appsettings.json hot-reload watching: it uses inotify under the hood, and long-lived containers
+// (Render, Docker) can exhaust the host's inotify instance limit, crashing WebApplication.CreateBuilder
+// before any of our own startup code even runs. Production config never changes without a redeploy anyway.
+Environment.SetEnvironmentVariable("DOTNET_hostBuilder__reloadConfigOnChange", "false");
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Render (and most PaaS hosts) inject the port to bind to via $PORT.
