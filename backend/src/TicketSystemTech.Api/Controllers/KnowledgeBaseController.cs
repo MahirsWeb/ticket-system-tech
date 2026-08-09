@@ -128,9 +128,14 @@ public class KnowledgeBaseController : ControllerBase
 
         if (candidates.Count == 0) return new List<ChunkMatch>();
 
+        var internalNoteTicketIds = await GetTicketIdsWithInternalNoteAsync();
+
         var scored = candidates
             .Select(c => new { c.TicketId, c.Content, Similarity = CosineSimilarity(queryEmbedding, c.Embedding!) })
-            .OrderByDescending(x => x.Similarity)
+            // Tickets with an internal note take priority — that's where staff document the actual
+            // troubleshooting/fix, so they make far better AI answers than a title/description match alone.
+            .OrderByDescending(x => internalNoteTicketIds.Contains(x.TicketId))
+            .ThenByDescending(x => x.Similarity)
             .Take(Math.Clamp(take, 1, 50))
             .ToList();
 
@@ -147,6 +152,14 @@ public class KnowledgeBaseController : ControllerBase
             .Select(s => new ChunkMatch(tickets[s.TicketId], s.Content, (int)MathF.Round(Math.Clamp(s.Similarity, 0f, 1f) * 100)))
             .ToList();
     }
+
+    private async Task<HashSet<Guid>> GetTicketIdsWithInternalNoteAsync() =>
+        (await _db.TicketMessages.AsNoTracking()
+            .Where(m => m.Type == MessageType.InternalNote)
+            .Select(m => m.TicketId)
+            .Distinct()
+            .ToListAsync())
+        .ToHashSet();
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
@@ -178,10 +191,13 @@ public class KnowledgeBaseController : ControllerBase
 
         if (candidates.Count == 0) return new List<ChunkMatch>();
 
+        var internalNoteTicketIds = await GetTicketIdsWithInternalNoteAsync();
+
         var scored = candidates
             .Select(c => new { c.TicketId, c.Content, Score = keywords.Count(k => c.Content.Contains(k, StringComparison.OrdinalIgnoreCase)) })
             .Where(x => x.Score > 0)
-            .OrderByDescending(x => x.Score)
+            .OrderByDescending(x => x.TicketId.HasValue && internalNoteTicketIds.Contains(x.TicketId.Value))
+            .ThenByDescending(x => x.Score)
             .Take(Math.Clamp(take, 1, 50))
             .ToList();
 
