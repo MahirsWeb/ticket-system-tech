@@ -17,10 +17,13 @@ public class KnowledgeBaseController : ControllerBase
     private const string SystemInstruction =
         "You are a technical support assistant for Ticket System Tech's internal helpdesk. " +
         "You may ONLY use the ticket information given to you in the context — never your own general " +
-        "knowledge, and never information about any other product or system. If the context does not " +
-        "contain a relevant answer, say plainly that nothing relevant was found in the knowledge base. " +
-        "Keep answers short and practical, aimed at a support agent trying to resolve a client's issue. " +
-        "Reply in the same language the question was asked in.";
+        "knowledge, and never information about any other product or system. The context is ordered with " +
+        "the most detailed, thoroughly-documented tickets first — weigh those most heavily, but synthesize " +
+        "your answer from the patterns across ALL of the tickets given to you, not just the first one. " +
+        "If you cannot give one confident, specific answer, say so plainly, then on a new line list the " +
+        "ticket numbers from the context that look most likely to help (e.g. \"Tickets that might help: " +
+        "#12345, #12346\"). Keep answers short and practical, aimed at a support agent trying to resolve " +
+        "a client's issue. Reply in the same language the question was asked in.";
 
     private readonly AppDbContext _db;
     private readonly IChatCompletionService _chatCompletionService;
@@ -128,16 +131,19 @@ public class KnowledgeBaseController : ControllerBase
 
         if (candidates.Count == 0) return new List<ChunkMatch>();
 
-        var internalNoteTicketIds = await GetTicketIdsWithInternalNoteAsync();
+        var internalNoteLengths = await GetInternalNoteLengthByTicketAsync();
 
         // Only tickets with an internal note actually document what the problem/fix was — a bare
         // title+description match with no note gives the consultant nothing to act on, so it never
-        // qualifies as a source, no matter how textually similar it looks.
+        // qualifies as a source, no matter how textually similar it looks. Relevance (similarity) picks
+        // which tickets qualify; among those, the most thoroughly-documented ones are listed first so
+        // the AI weighs the richest troubleshooting detail most heavily.
         var scored = candidates
-            .Where(c => internalNoteTicketIds.Contains(c.TicketId))
+            .Where(c => internalNoteLengths.ContainsKey(c.TicketId))
             .Select(c => new { c.TicketId, c.Content, Similarity = CosineSimilarity(queryEmbedding, c.Embedding!) })
             .OrderByDescending(x => x.Similarity)
             .Take(Math.Clamp(take, 1, 50))
+            .OrderByDescending(x => internalNoteLengths[x.TicketId])
             .ToList();
 
         var ticketIds = scored.Select(s => s.TicketId).ToList();
@@ -154,13 +160,14 @@ public class KnowledgeBaseController : ControllerBase
             .ToList();
     }
 
-    private async Task<HashSet<Guid>> GetTicketIdsWithInternalNoteAsync() =>
-        (await _db.TicketMessages.AsNoTracking()
+    /// <summary>Total internal-note character count per ticket — a proxy for how thoroughly the
+    /// troubleshooting/fix was documented, used to prioritize the richest sources.</summary>
+    private async Task<Dictionary<Guid, int>> GetInternalNoteLengthByTicketAsync() =>
+        await _db.TicketMessages.AsNoTracking()
             .Where(m => m.Type == MessageType.InternalNote)
-            .Select(m => m.TicketId)
-            .Distinct()
-            .ToListAsync())
-        .ToHashSet();
+            .GroupBy(m => m.TicketId)
+            .Select(g => new { TicketId = g.Key, Length = g.Sum(m => m.BodyHtml.Length) })
+            .ToDictionaryAsync(x => x.TicketId, x => x.Length);
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
@@ -192,14 +199,15 @@ public class KnowledgeBaseController : ControllerBase
 
         if (candidates.Count == 0) return new List<ChunkMatch>();
 
-        var internalNoteTicketIds = await GetTicketIdsWithInternalNoteAsync();
+        var internalNoteLengths = await GetInternalNoteLengthByTicketAsync();
 
         var scored = candidates
-            .Where(c => c.TicketId.HasValue && internalNoteTicketIds.Contains(c.TicketId.Value))
+            .Where(c => c.TicketId.HasValue && internalNoteLengths.ContainsKey(c.TicketId.Value))
             .Select(c => new { c.TicketId, c.Content, Score = keywords.Count(k => c.Content.Contains(k, StringComparison.OrdinalIgnoreCase)) })
             .Where(x => x.Score > 0)
             .OrderByDescending(x => x.Score)
             .Take(Math.Clamp(take, 1, 50))
+            .OrderByDescending(x => internalNoteLengths[x.TicketId!.Value])
             .ToList();
 
         if (scored.Count == 0) return new List<ChunkMatch>();
