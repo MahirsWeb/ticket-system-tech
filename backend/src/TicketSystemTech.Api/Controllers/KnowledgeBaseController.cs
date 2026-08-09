@@ -118,11 +118,11 @@ public class KnowledgeBaseController : ControllerBase
 
     private async Task<List<ChunkMatch>> FindMatchesBySimilarityAsync(float[] queryEmbedding, int take)
     {
-        // Bounded candidate set: recent chunks, scored in memory (no pgvector index — fine at this scale).
+        // Scored in memory against the whole knowledge base (no pgvector index yet). A candidate cap here
+        // would silently hide older tickets from search once the base grows past the cap — every embedded
+        // ticket needs to be a candidate for the ranking to be correct.
         var candidates = await _db.KnowledgeBaseChunks.AsNoTracking()
             .Where(c => c.TicketId != null && c.Embedding != null)
-            .OrderByDescending(c => c.CreatedAt)
-            .Take(1000)
             .Select(c => new { c.Content, TicketId = c.TicketId!.Value, c.Embedding })
             .ToListAsync();
 
@@ -171,11 +171,8 @@ public class KnowledgeBaseController : ControllerBase
             .ToList();
         if (keywords.Count == 0) return new List<ChunkMatch>();
 
-        // Bounded candidate set: recent chunks, scored in memory.
         var candidates = await _db.KnowledgeBaseChunks.AsNoTracking()
             .Where(c => c.TicketId != null)
-            .OrderByDescending(c => c.CreatedAt)
-            .Take(1000)
             .Select(c => new { c.Content, c.TicketId })
             .ToListAsync();
 
