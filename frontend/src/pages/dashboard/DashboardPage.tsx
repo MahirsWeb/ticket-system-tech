@@ -443,7 +443,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <p className="mb-3 text-xs text-slate-400">Drag to zoom into a range · right-click to zoom back out</p>
-        <div onContextMenu={handleChartContextMenu}>
+        <div onContextMenu={handleChartContextMenu} className="select-none">
           <ResponsiveContainer width="100%" height={280}>
             <LineChart
               data={timeSeriesChartData}
