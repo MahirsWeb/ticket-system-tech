@@ -225,8 +225,8 @@ public class TicketsController : ControllerBase
             "createdat" => desc ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt),
             "branch" => desc ? query.OrderByDescending(t => t.Department!.Name) : query.OrderBy(t => t.Department!.Name),
             "company" => desc ? query.OrderByDescending(t => t.Company!.Name) : query.OrderBy(t => t.Company!.Name),
-            // Default: most urgent first, then oldest created first — the operational priority order.
-            _ => query.OrderBy(t => t.Priority).ThenBy(t => t.CreatedAt)
+            // Default: most urgent first (Emergency, High, Medium, Low), then newest created first.
+            _ => query.OrderBy(t => t.Priority).ThenByDescending(t => t.CreatedAt)
         };
 
         var page_ = await query
