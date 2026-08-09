@@ -454,7 +454,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} tickFormatter={(d) => format(new Date(d), 'dd MMM')} allowDataOverflow />
               <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-              <Tooltip labelFormatter={(d) => format(new Date(d), 'dd MMM yyyy')} />
+              <Tooltip labelFormatter={(d) => (d ? format(new Date(d as string), 'dd MMM yyyy') : '')} />
               <Legend />
               <Line type="monotone" dataKey="opened" name="Opened" stroke="#2f5ea8" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="closed" name="Closed" stroke="#15803d" strokeWidth={2} dot={false} />

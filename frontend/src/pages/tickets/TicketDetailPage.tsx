@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ticketsApi } from '../../api/tickets';
 import type { TicketDetailDto } from '../../types';
-import { Button, Card, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
+import { Card, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useAuthStore } from '../../store/authStore';
 import { OpenTicketForm } from './OpenTicketForm';
