@@ -20,7 +20,7 @@ import { Button, Card, ErrorText, Select } from '../../components/ui';
 import { DateRangePicker } from '../../components/DateRangePicker';
 import { GanttChart } from '../../components/GanttChart';
 import { useAuthStore } from '../../store/authStore';
-import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceArea } from 'recharts';
 
 const MIN_AI_INSIGHTS_DAYS = 28;
 const GROUP_BY_OPTIONS: { value: 'week' | 'month' | 'quarter' | 'year'; label: string }[] = [
@@ -88,6 +88,10 @@ export default function DashboardPage() {
 
   const [summary, setSummary] = useState<ReportSummaryDto | null>(null);
   const [series, setSeries] = useState<TimeSeriesPointDto[]>([]);
+  const [hideWeekends, setHideWeekends] = useState(false);
+  const [zoomStack, setZoomStack] = useState<{ from: Date; to: Date }[]>([]);
+  const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryDto[]>([]);
   const [branchBreakdown, setBranchBreakdown] = useState<BranchBreakdownEntryDto[]>([]);
   const [topIssues, setTopIssues] = useState<TopIssueDto[]>([]);
@@ -181,6 +185,42 @@ export default function DashboardPage() {
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [employees, departmentId]);
+
+  const timeSeriesChartData = useMemo(
+    () => (hideWeekends ? series.filter((p) => ![0, 6].includes(new Date(p.date).getDay())) : series),
+    [series, hideWeekends]
+  );
+
+  function handleChartMouseDown(e: any) {
+    if (e?.activeLabel) setRefAreaLeft(e.activeLabel);
+  }
+  function handleChartMouseMove(e: any) {
+    if (refAreaLeft && e?.activeLabel) setRefAreaRight(e.activeLabel);
+  }
+  function handleChartMouseUp() {
+    if (refAreaLeft && refAreaRight) {
+      let start = new Date(refAreaLeft);
+      let end = new Date(refAreaRight);
+      if (start.getTime() > end.getTime()) [start, end] = [end, start];
+      if (start.getTime() !== end.getTime()) {
+        setZoomStack((s) => [...s, { from, to }]);
+        setFrom(start);
+        setTo(end);
+      }
+    }
+    setRefAreaLeft(null);
+    setRefAreaRight(null);
+  }
+  function handleChartContextMenu(e: any) {
+    e.preventDefault();
+    setZoomStack((s) => {
+      if (s.length === 0) return s;
+      const prev = s[s.length - 1];
+      setFrom(prev.from);
+      setTo(prev.to);
+      return s.slice(0, -1);
+    });
+  }
 
   const periodTotal = periodPoints.reduce((sum, p) => sum + p.count, 0);
   const periodChartData = periodPoints.map((p) => ({
@@ -379,18 +419,51 @@ export default function DashboardPage() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Tickets over time</h2>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={series.map((p) => ({ ...p, date: format(new Date(p.date), 'dd MMM') }))}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="opened" name="Opened" stroke="#2f5ea8" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="closed" name="Closed" stroke="#15803d" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Tickets over time</h2>
+          <div className="flex items-center gap-3">
+            {zoomStack.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const prev = zoomStack[0];
+                  setFrom(prev.from);
+                  setTo(prev.to);
+                  setZoomStack([]);
+                }}
+                className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
+              >
+                Reset zoom
+              </button>
+            )}
+            <label className="flex items-center gap-1.5 text-xs text-slate-500">
+              <input type="checkbox" checked={hideWeekends} onChange={(e) => setHideWeekends(e.target.checked)} />
+              Hide weekends
+            </label>
+          </div>
+        </div>
+        <p className="mb-3 text-xs text-slate-400">Drag to zoom into a range · right-click to zoom back out</p>
+        <div onContextMenu={handleChartContextMenu}>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart
+              data={timeSeriesChartData}
+              onMouseDown={handleChartMouseDown}
+              onMouseMove={handleChartMouseMove}
+              onMouseUp={handleChartMouseUp}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} tickFormatter={(d) => format(new Date(d), 'dd MMM')} allowDataOverflow />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <Tooltip labelFormatter={(d) => format(new Date(d), 'dd MMM yyyy')} />
+              <Legend />
+              <Line type="monotone" dataKey="opened" name="Opened" stroke="#2f5ea8" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="closed" name="Closed" stroke="#15803d" strokeWidth={2} dot={false} />
+              {refAreaLeft && refAreaRight && (
+                <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#2f5ea8" fillOpacity={0.15} />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </Card>
 
       <Card className="p-5">
