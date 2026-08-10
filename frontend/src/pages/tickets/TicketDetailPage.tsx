@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ticketsApi } from '../../api/tickets';
 import type { TicketDetailDto } from '../../types';
-import { Card, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
+import { Card, ErrorText, PriorityBadge, Spinner, StatusBadge } from '../../components/ui';
+import { SafeHtml } from '../../components/SafeHtml';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useAuthStore } from '../../store/authStore';
 import { OpenTicketForm } from './OpenTicketForm';
@@ -29,6 +30,7 @@ export default function TicketDetailPage() {
   const user = useAuthStore((s) => s.user);
   const [ticket, setTicket] = useState<TicketDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmReopen, setConfirmReopen] = useState(false);
   const [reopening, setReopening] = useState(false);
 
@@ -45,7 +47,12 @@ export default function TicketDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    ticketsApi.getById(id).then(setTicket).finally(() => setLoading(false));
+    setLoadError(null);
+    ticketsApi
+      .getById(id)
+      .then(setTicket)
+      .catch((err: any) => setLoadError(err?.response?.data?.message ?? 'Could not load this ticket.'))
+      .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
@@ -55,6 +62,7 @@ export default function TicketDetailPage() {
       </div>
     );
   }
+  if (loadError) return <ErrorText>{loadError}</ErrorText>;
   if (!ticket || !user) return <p>Ticket not found.</p>;
 
   const isStaff = user.role === 'Admin' || user.role === 'Employee';
@@ -117,7 +125,7 @@ export default function TicketDetailPage() {
 
       <Card className="p-5">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Original request</h2>
-        <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: ticket.description }} />
+        <SafeHtml className="prose prose-sm max-w-none" html={ticket.description} />
         {ticket.attachments.length > 0 && (
           <ul className="mt-3 space-y-1 text-xs">
             {ticket.attachments.map((a) => (

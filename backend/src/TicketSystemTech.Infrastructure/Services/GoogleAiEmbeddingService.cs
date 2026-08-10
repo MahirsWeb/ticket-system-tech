@@ -6,7 +6,7 @@ using TicketSystemTech.Application.Common.Interfaces;
 
 namespace TicketSystemTech.Infrastructure.Services;
 
-/// <summary>Generates embeddings via Google AI Studio's text-embedding-004 model, when configured.</summary>
+/// <summary>Generates embeddings via Google AI Studio's gemini-embedding-001 model, when configured.</summary>
 public class GoogleAiEmbeddingService : IEmbeddingService
 {
     private readonly HttpClient _httpClient;
@@ -33,7 +33,12 @@ public class GoogleAiEmbeddingService : IEmbeddingService
     public async Task<float[]?> EmbedAsync(string text, CancellationToken ct = default)
     {
         var apiKey = _configuration["GoogleAi:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _logger.LogWarning("[AI:NOT_CONFIGURED] GoogleAi:ApiKey is not set — embedding is disabled.");
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(text))
             return null;
 
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={apiKey}";
@@ -52,7 +57,7 @@ public class GoogleAiEmbeddingService : IEmbeddingService
                 {
                     var delay = GetRetryDelay(response, attempt);
                     _logger.LogWarning(
-                        "Google AI embedding rate-limited (attempt {Attempt}/{Max}), retrying in {Delay:0.0}s",
+                        "[AI:RATE_LIMITED] Google AI embedding rate-limited (attempt {Attempt}/{Max}), retrying in {Delay:0.0}s",
                         attempt + 1, MaxRetries + 1, delay.TotalSeconds);
                     await Task.Delay(delay, ct);
                     continue;
@@ -60,7 +65,7 @@ public class GoogleAiEmbeddingService : IEmbeddingService
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("Google AI embedding request failed with status {Status}", response.StatusCode);
+                    _logger.LogWarning("[AI:API_ERROR] Google AI embedding request failed with status {Status}", response.StatusCode);
                     return null;
                 }
 
@@ -74,12 +79,12 @@ public class GoogleAiEmbeddingService : IEmbeddingService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to generate embedding via Google AI.");
+                _logger.LogWarning(ex, "[AI:UNEXPECTED_ERROR] Failed to generate embedding via Google AI.");
                 return null;
             }
         }
 
-        _logger.LogWarning("Google AI embedding gave up after {Max} retries due to persistent rate limiting.", MaxRetries + 1);
+        _logger.LogWarning("[AI:RATE_LIMITED] Google AI embedding gave up after {Max} retries due to persistent rate limiting.", MaxRetries + 1);
         return null;
     }
 

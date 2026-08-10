@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TicketSystemTech.Api.Contracts;
 using TicketSystemTech.Api.Emails;
+using TicketSystemTech.Api.Middleware;
 using TicketSystemTech.Application.Common.Interfaces;
 using TicketSystemTech.Application.Common.Options;
 using TicketSystemTech.Domain.Enums;
@@ -27,6 +29,7 @@ public class UsersController : ControllerBase
     private readonly IEmailSender _emailSender;
     private readonly FrontendOptions _frontendOptions;
     private readonly IFileStorage _fileStorage;
+    private readonly IMemoryCache _cache;
 
     public UsersController(
         UserManager<ApplicationUser> userManager,
@@ -36,7 +39,8 @@ public class UsersController : ControllerBase
         IOptions<TemporaryPasswordOptions> tempPasswordOptions,
         IEmailSender emailSender,
         IOptions<FrontendOptions> frontendOptions,
-        IFileStorage fileStorage)
+        IFileStorage fileStorage,
+        IMemoryCache cache)
     {
         _userManager = userManager;
         _db = db;
@@ -44,6 +48,7 @@ public class UsersController : ControllerBase
         _tempPasswordGenerator = tempPasswordGenerator;
         _tempPasswordOptions = tempPasswordOptions.Value;
         _emailSender = emailSender;
+        _cache = cache;
         _frontendOptions = frontendOptions.Value;
         _fileStorage = fileStorage;
     }
@@ -177,6 +182,7 @@ public class UsersController : ControllerBase
         user.DepartmentId = departmentId;
         user.SubBranchId = subBranchId;
         await _userManager.UpdateAsync(user);
+        _cache.Remove(UserStatusCache.Key(user.Id));
         return Ok();
     }
 
@@ -195,6 +201,7 @@ public class UsersController : ControllerBase
 
         user.IsActive = request.IsActive;
         await _userManager.UpdateAsync(user);
+        _cache.Remove(UserStatusCache.Key(user.Id));
         return Ok();
     }
 

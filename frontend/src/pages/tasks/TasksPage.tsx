@@ -50,6 +50,7 @@ export default function TasksPage() {
   const [mineOnly, setMineOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<WorkTaskDetailDto | null>(null);
+  const [expandError, setExpandError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<WorkTaskStatus>('Pending');
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -167,7 +168,13 @@ export default function TasksPage() {
       return;
     }
     setExpandedId(id);
-    setExpandedDetail(await workTasksApi.getById(id));
+    setExpandedDetail(null);
+    setExpandError(null);
+    try {
+      setExpandedDetail(await workTasksApi.getById(id));
+    } catch (err: any) {
+      setExpandError(err?.response?.data?.message ?? 'Could not load this task.');
+    }
   }
 
   function handleDetailChanged(updated: WorkTaskDetailDto) {
@@ -298,6 +305,13 @@ export default function TasksPage() {
                   <tr>
                     <td colSpan={colSpan} className="p-0">
                       <TaskDetailPanel task={expandedDetail} currentUserId={user?.id} canManage={canManage} onChanged={handleDetailChanged} />
+                    </td>
+                  </tr>
+                )}
+                {expandedId === t.id && expandError && (
+                  <tr>
+                    <td colSpan={colSpan} className="px-4 py-3">
+                      <ErrorText>{expandError}</ErrorText>
                     </td>
                   </tr>
                 )}

@@ -29,6 +29,7 @@ public class LookupsController : ControllerBase
     // ---------------- Companies ----------------
 
     [HttpGet("companies")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<List<CompanyItemFull>>> GetCompanies([FromQuery] bool includeInactive = false)
     {
         var isAdmin = User.IsInRole(nameof(UserRole.Admin));
@@ -300,6 +301,7 @@ public class LookupsController : ControllerBase
     // ---------------- SLA Plans ----------------
 
     [HttpGet("sla-plans")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<List<object>>> GetSlaPlans([FromQuery] bool includeInactive = false)
     {
         var isAdmin = User.IsInRole(nameof(UserRole.Admin));

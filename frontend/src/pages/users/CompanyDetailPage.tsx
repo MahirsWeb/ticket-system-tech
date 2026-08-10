@@ -18,6 +18,7 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState<CompanyItemFull | null>(null);
   const [tab, setTab] = useState<'users' | 'tickets'>('users');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [clients, setClients] = useState<UserListItemDto[]>([]);
   const [userSearch, setUserSearch] = useState('');
@@ -38,6 +39,7 @@ export default function CompanyDetailPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
+    setLoadError(null);
     Promise.all([lookupsApi.getCompany(id), usersApi.list({ role: 'Client', companyId: id })])
       .then(([c, users]) => {
         setCompany(c);
@@ -47,6 +49,7 @@ export default function CompanyDetailPage() {
         setEditActive(c.isActive);
         setClients(users);
       })
+      .catch((err: any) => setLoadError(err?.response?.data?.message ?? 'Could not load this company.'))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -107,6 +110,7 @@ export default function CompanyDetailPage() {
       </div>
     );
   }
+  if (loadError) return <ErrorText>{loadError}</ErrorText>;
   if (!company) return <p>Company not found.</p>;
 
   return (

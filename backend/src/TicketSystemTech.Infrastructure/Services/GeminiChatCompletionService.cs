@@ -30,7 +30,7 @@ public class GeminiChatCompletionService : IChatCompletionService
         var apiKey = _configuration["GoogleAi:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            _logger.LogWarning("GoogleAi:ApiKey is not configured — AI chat is disabled.");
+            _logger.LogWarning("[AI:NOT_CONFIGURED] GoogleAi:ApiKey is not set — AI chat is disabled.");
             return null;
         }
 
@@ -60,7 +60,9 @@ public class GeminiChatCompletionService : IChatCompletionService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Gemini request failed with status {Status}: {Body}", response.StatusCode, await response.Content.ReadAsStringAsync(ct));
+                var reason = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ? "RATE_LIMITED" : "API_ERROR";
+                _logger.LogWarning("[AI:{Reason}] Gemini chat request failed with status {Status}: {Body}",
+                    reason, response.StatusCode, await response.Content.ReadAsStringAsync(ct));
                 return null;
             }
 
@@ -76,7 +78,7 @@ public class GeminiChatCompletionService : IChatCompletionService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get a Gemini chat completion.");
+            _logger.LogWarning(ex, "[AI:UNEXPECTED_ERROR] Failed to get a Gemini chat completion.");
             return null;
         }
     }

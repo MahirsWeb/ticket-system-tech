@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -134,6 +135,12 @@ builder.Services.AddSingleton<INotificationPublisher, SignalRNotificationPublish
 builder.Services.AddHostedService<TicketSystemTech.Api.BackgroundJobs.OverdueTicketNotifier>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<TicketSystemTech.Api.Middleware.UserStatusValidationMiddleware>();
+// Key ring persisted to the database (not local disk) so encrypted OAuth tokens survive redeploys.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<AppDbContext>()
+    .SetApplicationName("TicketSystemTech");
 
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(TicketSystemTech.Application.AssemblyReference).Assembly));
@@ -204,6 +211,7 @@ app.UseStaticFiles();
 app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<TicketSystemTech.Api.Middleware.UserStatusValidationMiddleware>();
 app.UseAuthorization();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();

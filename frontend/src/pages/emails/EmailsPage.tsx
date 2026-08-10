@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { emailIntegrationApi, type EmailPrefillDto, type InboxMessageSummaryDto } from '../../api/emailIntegration';
 import { Button, Card, Spinner } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { SafeHtml } from '../../components/SafeHtml';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAuthStore } from '../../store/authStore';
 
@@ -253,7 +254,7 @@ export default function EmailsPage() {
                   </div>
                 )}
               </div>
-              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: detail.bodyHtml }} />
+              <SafeHtml className="prose prose-sm max-w-none" html={detail.bodyHtml} />
             </div>
           )}
         </Card>

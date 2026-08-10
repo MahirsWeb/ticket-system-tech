@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,16 +23,30 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
     private readonly IFileStorage _fileStorage;
     private readonly MicrosoftGraphOptions _options;
     private readonly ILogger<GraphEmailIntegrationService> _logger;
+    private readonly IDataProtector _protector;
 
     public GraphEmailIntegrationService(
         AppDbContext db, HttpClient http, IFileStorage fileStorage,
-        IOptions<MicrosoftGraphOptions> options, ILogger<GraphEmailIntegrationService> logger)
+        IOptions<MicrosoftGraphOptions> options, ILogger<GraphEmailIntegrationService> logger,
+        IDataProtectionProvider dataProtectionProvider)
     {
         _db = db;
         _http = http;
         _fileStorage = fileStorage;
         _options = options.Value;
         _logger = logger;
+        _protector = dataProtectionProvider.CreateProtector("EmailConnection.OAuthTokens");
+    }
+
+    private string Protect(string value) => _protector.Protect(value);
+
+    // Rows saved before encryption was introduced hold plaintext tokens — treat an Unprotect failure
+    // as "this one predates encryption" rather than a hard error, so existing connections (e.g. the
+    // one already live in production) keep working and get re-encrypted the next time they're saved.
+    private string Unprotect(string value)
+    {
+        try { return _protector.Unprotect(value); }
+        catch (CryptographicException) { return value; }
     }
 
     public async Task<EmailConnectionStatus> GetStatusAsync(Guid departmentId, CancellationToken ct = default)
@@ -75,8 +91,8 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
         conn.ConnectedByUserId = connectedByUserId;
         conn.Provider = "Outlook";
         conn.ConnectedEmail = mail ?? "";
-        conn.AccessToken = accessToken;
-        conn.RefreshToken = refreshToken;
+        conn.AccessToken = Protect(accessToken);
+        conn.RefreshToken = Protect(refreshToken);
         conn.AccessTokenExpiresAtUtc = DateTime.UtcNow.AddSeconds(expiresIn);
         conn.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
@@ -234,14 +250,14 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
             {
                 ["client_id"] = _options.ClientId,
                 ["client_secret"] = _options.ClientSecret,
-                ["refresh_token"] = conn.RefreshToken,
+                ["refresh_token"] = Unprotect(conn.RefreshToken),
                 ["grant_type"] = "refresh_token",
                 ["scope"] = Scopes,
             };
             var tokenResponse = await PostFormAsync(TokenEndpoint, form, ct);
-            conn.AccessToken = tokenResponse.GetProperty("access_token").GetString()!;
+            conn.AccessToken = Protect(tokenResponse.GetProperty("access_token").GetString()!);
             if (tokenResponse.TryGetProperty("refresh_token", out var rt))
-                conn.RefreshToken = rt.GetString()!;
+                conn.RefreshToken = Protect(rt.GetString()!);
             conn.AccessTokenExpiresAtUtc = DateTime.UtcNow.AddSeconds(tokenResponse.GetProperty("expires_in").GetInt32());
             conn.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
@@ -253,7 +269,7 @@ public class GraphEmailIntegrationService : IEmailIntegrationService
     private async Task<JsonDocument> GetGraphAsync(EmailConnection conn, string url, CancellationToken ct)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", conn.AccessToken);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Unprotect(conn.AccessToken));
         var response = await _http.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {

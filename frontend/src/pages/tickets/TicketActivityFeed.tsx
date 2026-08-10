@@ -4,6 +4,7 @@ import { ticketsApi } from '../../api/tickets';
 import type { MessageType, TicketDetailDto, TicketMessageDto } from '../../types';
 import { Button } from '../../components/ui';
 import { RichTextEditor } from '../../components/RichTextEditor';
+import { SafeHtml } from '../../components/SafeHtml';
 
 /// Unified chat-like feed: Response, Internal Note, and system lifecycle events (opened/assigned/transferred/closed)
 /// all shown together in one chronological stream, distinguished by bubble color — no more switching tabs to see everything.
@@ -84,7 +85,7 @@ export function TicketActivityFeed({
                 </span>
                 <span>{format(new Date(m.createdAt), 'dd.MM.yyyy HH:mm')}</span>
               </div>
-              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: m.bodyHtml }} />
+              <SafeHtml className="prose prose-sm max-w-none" html={m.bodyHtml} />
               {m.attachments.length > 0 && (
                 <ul className="mt-2 space-y-1 text-xs">
                   {m.attachments.map((a) => (
