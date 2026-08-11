@@ -1,14 +1,12 @@
 # Ticket System Tech
 
 Support ticket system: React + TypeScript frontend, .NET 8 Web API backend, PostgreSQL (Supabase).
-See [docs/Plan_Razvoja_Tiket_Sistema.pdf](docs/Plan_Razvoja_Tiket_Sistema.pdf) for the full plan.
 
 ## Project structure
 
 ```
 backend/    ASP.NET Core 8 Web API (Domain / Application / Infrastructure / Api / Tests)
 frontend/   React + TypeScript (Vite, Tailwind, TipTap, Recharts)
-docs/       Planning documents
 ```
 
 ## Local development
