@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { KnowledgeBaseSearchResultDto } from '../types';
+import type { KnowledgeBaseDocumentDto, KnowledgeBaseSearchResultDto } from '../types';
 
 export interface KnowledgeBaseAskResponse {
   answer: string;
@@ -16,4 +16,19 @@ export const knowledgeBaseApi = {
     apiClient.post<KnowledgeBaseAskResponse>('/api/knowledge-base/ask', { question }).then((r) => r.data),
 
   reindexAll: () => apiClient.post<{ indexed: number }>('/api/knowledge-base/reindex-all').then((r) => r.data),
+
+  listDocuments: () =>
+    apiClient.get<KnowledgeBaseDocumentDto[]>('/api/knowledge-base/documents').then((r) => r.data),
+
+  uploadDocuments: (files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append('files', f));
+    return apiClient
+      .post<KnowledgeBaseDocumentDto[]>('/api/knowledge-base/documents', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+
+  deleteDocument: (id: string) => apiClient.delete(`/api/knowledge-base/documents/${id}`).then((r) => r.data),
 };

@@ -85,13 +85,25 @@ export interface ClientLookupResult {
 }
 
 export interface KnowledgeBaseSearchResultDto {
-  ticketId: string;
-  ticketNumber: string;
-  title: string;
-  status: TicketStatus;
+  sourceType: 'Ticket' | 'Document';
+  ticketId: string | null;
+  ticketNumber: string | null;
+  status: TicketStatus | null;
   closedAtUtc: string | null;
   resolutionSummary: string | null;
+  documentId: string | null;
+  documentFileUrl: string | null;
+  title: string;
   matchScore: number;
+}
+
+export interface KnowledgeBaseDocumentDto {
+  id: string;
+  title: string;
+  sourceFileName: string;
+  fileUrl: string | null;
+  createdAt: string;
+  chunkCount: number;
 }
 
 export interface TicketAttachmentDto {

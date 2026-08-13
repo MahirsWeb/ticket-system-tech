@@ -19,6 +19,7 @@ import TasksPage from './pages/tasks/TasksPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import EmailsPage from './pages/emails/EmailsPage';
 import EmailCallbackPage from './pages/emails/EmailCallbackPage';
+import AiAssistantPage from './pages/knowledgeBase/AiAssistantPage';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -103,6 +104,14 @@ export default function App() {
               element={
                 <RequireRole roles={['Admin', 'Employee']}>
                   <NewTicketOnBehalfPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/ai-assistant"
+              element={
+                <RequireRole roles={['Admin', 'Employee']}>
+                  <AiAssistantPage />
                 </RequireRole>
               }
             />
