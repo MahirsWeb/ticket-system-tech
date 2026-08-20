@@ -41,11 +41,18 @@ builder.Host.UseSerilog();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection("Frontend"));
 builder.Services.Configure<TemporaryPasswordOptions>(builder.Configuration.GetSection("TemporaryPassword"));
+builder.Services.Configure<PiiOptions>(builder.Configuration.GetSection("Pii"));
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 
 // ---- Database ----
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Encrypts PII columns (email, phone, address) at rest. Must be registered as a singleton — see
+// PiiProtector's doc comment — and the custom ILookupNormalizer must be registered before AddIdentity()
+// so it wins over Identity's default TryAddScoped<ILookupNormalizer, UpperInvariantLookupNormalizer>().
+builder.Services.AddSingleton<IPiiProtector, PiiProtector>();
+builder.Services.AddSingleton<ILookupNormalizer, PiiLookupNormalizer>();
 
 // ---- Identity ----
 builder.Services
@@ -114,6 +121,18 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 15,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    // Client-facing AI chat calls a metered LLM API — cap per-IP usage so it can't be hammered into a
+    // large bill. Staff's own /ask isn't limited here; they're a trusted, small, authenticated user base.
+    options.AddPolicy("ai", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 8,
+                Window = TimeSpan.FromMinutes(5),
                 QueueLimit = 0
             }));
 });
@@ -192,7 +211,9 @@ using (var scope = app.Services.CreateScope())
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var seedPasswordGenerator = scope.ServiceProvider.GetRequiredService<ITemporaryPasswordGenerator>();
     var tempPasswordOptions = scope.ServiceProvider.GetRequiredService<IOptions<TemporaryPasswordOptions>>();
+    var piiProtector = scope.ServiceProvider.GetRequiredService<IPiiProtector>();
     await db.Database.MigrateAsync();
+    await TicketSystemTech.Infrastructure.Persistence.PiiBackfillMigration.RunAsync(db, piiProtector, startupLogger);
     await TicketSystemTech.Infrastructure.Persistence.DbSeeder.SeedAsync(
         db, userManager, startupLogger, builder.Configuration, seedPasswordGenerator, tempPasswordOptions);
 }
@@ -216,6 +237,9 @@ app.UseAuthentication();
 app.UseMiddleware<TicketSystemTech.Api.Middleware.UserStatusValidationMiddleware>();
 app.UseAuthorization();
 
+// Render's health check hits the service root by default — without this it 404s and Render kills the
+// instance in an endless restart loop, even though the app itself started up fine.
+app.MapGet("/", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapControllers();
 app.MapHub<NotificationsHub>("/hubs/notifications");

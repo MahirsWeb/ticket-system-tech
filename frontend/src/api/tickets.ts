@@ -68,8 +68,8 @@ export const ticketsApi = {
     }
   ) => apiClient.post<TicketDetailDto>(`/api/tickets/${id}/open`, payload).then((r) => r.data),
 
-  close: (id: string, resolutionSummary: string, technicalNotes?: string) =>
-    apiClient.post<TicketDetailDto>(`/api/tickets/${id}/close`, { resolutionSummary, technicalNotes }).then((r) => r.data),
+  close: (id: string, resolutionSummary: string) =>
+    apiClient.post<TicketDetailDto>(`/api/tickets/${id}/close`, { resolutionSummary }).then((r) => r.data),
 
   reopen: (id: string) => apiClient.post<TicketDetailDto>(`/api/tickets/${id}/reopen`).then((r) => r.data),
 

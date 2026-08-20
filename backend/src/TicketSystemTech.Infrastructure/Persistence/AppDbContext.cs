@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using TicketSystemTech.Application.Common.Interfaces;
 using TicketSystemTech.Domain.Entities;
 using TicketSystemTech.Infrastructure.Identity;
 
@@ -12,7 +14,14 @@ namespace TicketSystemTech.Infrastructure.Persistence;
 // make every previously-encrypted OAuth token unreadable the next time the app starts.
 public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>, IDataProtectionKeyContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    // IPiiProtector must be a singleton (see PiiProtector's own doc comment) — EF Core builds and
+    // caches the model, including these converters, once for the app's lifetime, not per-request.
+    private readonly IPiiProtector _piiProtector;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, IPiiProtector piiProtector) : base(options)
+    {
+        _piiProtector = piiProtector;
+    }
 
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Department> Departments => Set<Department>();
@@ -41,10 +50,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
         builder.HasSequence<long>("TicketNumberSequence").StartsAt(100001).IncrementsBy(1);
 
+        // Encrypts personal data at rest. NormalizedEmail/NormalizedUserName are NOT run through this —
+        // they hold a one-way hash instead (see PiiLookupNormalizer), so login lookups stay exact-match
+        // without ever storing the plaintext email in a second, unencrypted column.
+        var piiConverter = new ValueConverter<string?, string?>(
+            v => _piiProtector.Encrypt(v),
+            v => _piiProtector.Decrypt(v));
+
         builder.Entity<ApplicationUser>(e =>
         {
             e.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
             e.Property(u => u.LastName).HasMaxLength(100).IsRequired();
+            e.Property(u => u.Email).HasConversion(piiConverter).HasMaxLength(1000);
+            e.Property(u => u.UserName).HasConversion(piiConverter).HasMaxLength(1000);
+            e.Property(u => u.PhoneNumber).HasConversion(piiConverter);
             e.HasIndex(u => u.CompanyId);
             e.HasIndex(u => u.Role);
             e.HasIndex(u => u.DepartmentId);
@@ -56,6 +75,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<Company>(e =>
         {
             e.Property(c => c.Name).HasMaxLength(200).IsRequired();
+            e.Property(c => c.Address).HasConversion(piiConverter);
         });
 
         builder.Entity<Department>(e =>

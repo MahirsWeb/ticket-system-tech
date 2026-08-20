@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export function AuthSplitLayout({ children }: { children: ReactNode }) {
+  const { t } = useLanguage();
   return (
     <div className="flex min-h-screen bg-white">
       {/* Decorative brand panel */}
@@ -13,25 +16,26 @@ export function AuthSplitLayout({ children }: { children: ReactNode }) {
         <div className="absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-white/10" />
         <div className="absolute bottom-24 left-16 h-40 w-40 rounded-full bg-white/10" />
 
-        <div className="relative z-10 px-14 pt-14">
-          <span className="text-lg font-bold tracking-tight text-white">Ticket System Tech</span>
+        <div className="relative z-10 flex items-center justify-between px-14 pt-14">
+          <span className="text-lg font-bold tracking-tight text-white">{t('appName')}</span>
+          <LanguageSwitcher dark />
         </div>
 
         <div className="relative z-10 px-14 pb-20">
           <h1 className="mb-4 text-5xl font-bold leading-tight text-white">
-            Support,
+            {t('login_heroTitle1')}
             <br />
-            organized.
+            {t('login_heroTitle2')}
           </h1>
-          <p className="max-w-sm text-sm leading-relaxed text-blue-100">
-            One place for your team to track, resolve, and learn from every client ticket — with an AI assistant
-            that already knows your history.
-          </p>
+          <p className="max-w-sm text-sm leading-relaxed text-blue-100">{t('login_heroSubtitle')}</p>
         </div>
       </div>
 
       {/* Content panel */}
-      <div className="flex w-full flex-col items-center justify-center bg-slate-50 px-6 py-12 lg:w-1/2">
+      <div className="relative flex w-full flex-col items-center justify-center bg-slate-50 px-6 py-12 lg:w-1/2">
+        <div className="absolute right-6 top-6 lg:hidden">
+          <LanguageSwitcher />
+        </div>
         {children}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { authApi } from '../../api/auth';
 import { useAuthStore } from '../../store/authStore';
 import { Button, ErrorText, IconInput } from '../../components/ui';
 import { AuthSplitLayout } from '../../layouts/AuthSplitLayout';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 function UserIcon() {
   return (
@@ -26,6 +27,7 @@ function LockIcon() {
 export default function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -48,13 +50,13 @@ export default function LoginPage() {
     } catch (err: any) {
       const code = err?.response?.data?.code;
       if (code === 'EMAIL_NOT_VERIFIED') {
-        setError('Please verify your email address before logging in. Check your inbox for the verification link.');
+        setError(t('login_errEmailNotVerified'));
       } else if (code === 'TEMP_PASSWORD_EXPIRED') {
-        setError('Your temporary password has expired. Please ask an admin or consultant to generate a new one.');
+        setError(t('login_errTempPasswordExpired'));
       } else if (code === 'ACCOUNT_LOCKED') {
-        setError('Too many failed sign-in attempts. Please try again in a few minutes, or reset your password.');
+        setError(t('login_errAccountLocked'));
       } else {
-        setError(err?.response?.data?.message ?? 'Invalid email or password.');
+        setError(err?.response?.data?.message ?? t('login_errGeneric'));
       }
     } finally {
       setLoading(false);
@@ -65,16 +67,16 @@ export default function LoginPage() {
     <AuthSplitLayout>
       <div className="w-full max-w-sm">
         <div className="mb-8 lg:hidden">
-          <span className="text-lg font-bold text-[#1a2b4c]">Ticket System Tech</span>
+          <span className="text-lg font-bold text-[#1a2b4c]">{t('appName')}</span>
         </div>
-        <h1 className="mb-1 text-2xl font-bold text-slate-900">Welcome back</h1>
-        <p className="mb-8 text-sm text-slate-500">Sign in to your account to continue</p>
+        <h1 className="mb-1 text-2xl font-bold text-slate-900">{t('login_welcomeBack')}</h1>
+        <p className="mb-8 text-sm text-slate-500">{t('login_subtitle')}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <IconInput
             icon={<UserIcon />}
             type="email"
-            placeholder="Enter your email"
+            placeholder={t('login_emailPlaceholder')}
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -83,7 +85,7 @@ export default function LoginPage() {
           <IconInput
             icon={<LockIcon />}
             type="password"
-            placeholder="Enter your password"
+            placeholder={t('login_passwordPlaceholder')}
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -91,14 +93,14 @@ export default function LoginPage() {
 
           <div className="text-right">
             <Link to="/forgot-password" className="text-xs font-medium text-blue-700 hover:underline">
-              Forgot your password?
+              {t('login_forgotPassword')}
             </Link>
           </div>
 
           <ErrorText>{error}</ErrorText>
 
           <Button type="submit" variant="pill" className="w-full" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t('login_signingIn') : t('login_signIn')}
           </Button>
         </form>
       </div>

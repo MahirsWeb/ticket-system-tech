@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using TicketSystemTech.Api.Contracts;
 using TicketSystemTech.Application.Common.Interfaces;
@@ -12,12 +13,22 @@ namespace TicketSystemTech.Api.Controllers;
 
 [ApiController]
 [Route("api/knowledge-base")]
-[Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
 public class KnowledgeBaseController : ControllerBase
 {
     private const long MaxDocumentSizeBytes = 20 * 1024 * 1024; // 20 MB
 
-    private const string SystemInstruction =
+    /// <summary>A ticket only qualifies as an AI source once its internal notes carry at least this many
+    /// characters — screens out tickets that were never really documented internally.</summary>
+    private const int MinInternalNoteChars = 100;
+
+    /// <summary>"Similar" for the report means the top slice of THIS query's own score range, not a fixed
+    /// cosine-similarity cutoff. Measured against real production data: Gemini embedding similarity for
+    /// this corpus never drops below ~0.50 even for unrelated tickets and rarely exceeds ~0.75 — a fixed
+    /// threshold of 0.50 matched 100% of the ticket base, and even 0.60 matched 93%. Only a threshold
+    /// relative to each query's own max/min spread produces a report that means anything.</summary>
+    private const double SimilarityReportTopFraction = 0.2;
+
+    private const string StaffSystemInstruction =
         "You are a technical support assistant for Ticket System Tech's internal helpdesk. " +
         "You may ONLY use the information given to you in the context — never your own general " +
         "knowledge, and never information about any other product or system. The context mixes two " +
@@ -29,6 +40,19 @@ public class KnowledgeBaseController : ControllerBase
         "most likely to help (e.g. \"Tickets that might help: #12345, #12346\"). Keep answers short and " +
         "practical, aimed at a support agent trying to resolve a client's issue. Reply in the same " +
         "language the question was asked in.";
+
+    /// <summary>Deliberately never told about tickets or internal notes — the client-facing assistant only
+    /// ever sees official documentation, so there is no internal/technical content it could leak by design.</summary>
+    private const string ClientSystemInstruction =
+        "You are a friendly customer support assistant. You may ONLY use the official help documentation " +
+        "given to you in the context — never your own general knowledge, and never information about any " +
+        "other product or system. Explain things simply, for an end customer who is not a technician — no " +
+        "internal jargon, no technical implementation detail. If the context doesn't clearly answer the " +
+        "question, say plainly that you don't have enough information rather than guessing. Reply in the " +
+        "same language the question was asked in.";
+
+    private const string ClientNoInfoMessage =
+        "Žao nam je, nemamo dovoljno informacija u sistemu za vaš problem. Molimo kontaktirajte vašeg administratora.";
 
     private readonly AppDbContext _db;
     private readonly ICurrentUserService _currentUser;
@@ -83,31 +107,36 @@ public class KnowledgeBaseController : ControllerBase
     /// (no Google AI key) or no chunk has an embedding yet.
     /// </summary>
     [HttpGet("search")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<List<KnowledgeBaseSearchResultDto>>> Search([FromQuery] string query, [FromQuery] int take = 10)
     {
-        var matches = await FindMatchesAsync(query, take);
+        var matches = await FindMatchesAsync(query, take, includeTicketSources: true);
         return Ok(matches.Select(ToDto).ToList());
     }
 
     /// <summary>
     /// AI chat endpoint, strictly grounded in the knowledge base: retrieves the most relevant tickets
-    /// and documentation for the question and asks Gemini to answer using only that context.
+    /// and documentation for the question and asks Gemini to answer using only that context. Also returns
+    /// a small "how common is this" stat: how many other tickets look similar to the described problem.
     /// </summary>
     [HttpPost("ask")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<KnowledgeBaseAskResponseDto>> Ask(KnowledgeBaseAskRequest request)
     {
-        var matches = await FindMatchesAsync(request.Question, 50);
+        var matches = await FindMatchesAsync(request.Question, 50, includeTicketSources: true);
         var sources = matches.Select(ToDto).ToList();
+        var stats = await ComputeSimilarTicketStatsAsync(request.Question);
 
         if (matches.Count == 0)
         {
             return Ok(new KnowledgeBaseAskResponseDto(
-                "Nothing relevant was found in the knowledge base yet for this question.", sources));
+                "Nothing relevant was found in the knowledge base yet for this question.", sources,
+                stats.SimilarCount, stats.TotalEligible, stats.Percentage));
         }
 
         var context = string.Join("\n---\n", matches.Select(BuildContextEntry));
 
-        var answer = await _chatCompletionService.AskAsync(SystemInstruction, context, request.Question);
+        var answer = await _chatCompletionService.AskAsync(StaffSystemInstruction, context, request.Question);
         var finalAnswer = answer ?? "AI answering isn't configured yet — showing the closest matching sources instead.";
 
         // Tickets the AI explicitly called out by number (e.g. its "might help" fallback list) are the
@@ -116,7 +145,46 @@ public class KnowledgeBaseController : ControllerBase
         if (mentionedTicketNumbers.Count > 0)
             sources = sources.OrderByDescending(s => s.TicketNumber != null && mentionedTicketNumbers.Contains(s.TicketNumber)).ToList();
 
-        return Ok(new KnowledgeBaseAskResponseDto(finalAnswer, sources));
+        return Ok(new KnowledgeBaseAskResponseDto(finalAnswer, sources, stats.SimilarCount, stats.TotalEligible, stats.Percentage));
+    }
+
+    /// <summary>
+    /// Client-facing AI chat. Deliberately never draws on tickets — only on uploaded documentation — so
+    /// there is no path for internal notes (fixes via database, SQL, code changes, data migrations, ...)
+    /// to ever reach a client. Falls back to a plain "we don't have enough information" message instead
+    /// of guessing when the documentation doesn't cover the question.
+    /// </summary>
+    [HttpPost("ask-client")]
+    [Authorize(Roles = nameof(UserRole.Client))]
+    [EnableRateLimiting("ai")]
+    public async Task<ActionResult<KnowledgeBaseAskResponseDto>> AskClient(KnowledgeBaseAskRequest request)
+    {
+        var matches = await FindMatchesAsync(request.Question, 20, includeTicketSources: false);
+
+        if (matches.Count == 0)
+            return Ok(new KnowledgeBaseAskResponseDto(ClientNoInfoMessage, new List<KnowledgeBaseSearchResultDto>(), 0, 0, 0));
+
+        var context = string.Join("\n---\n", matches.Select(BuildContextEntry));
+        var answer = await _chatCompletionService.AskAsync(ClientSystemInstruction, context, request.Question);
+        var finalAnswer = string.IsNullOrWhiteSpace(answer) ? ClientNoInfoMessage : answer;
+
+        // Clients see which help articles were used, never ticket numbers/internal detail.
+        var sources = matches.Select(ToDto).ToList();
+        return Ok(new KnowledgeBaseAskResponseDto(finalAnswer, sources, 0, 0, 0));
+    }
+
+    /// <summary>
+    /// Full breakdown for the "how common is this problem" report: every ticket that looks similar to the
+    /// described problem (not just the top few shown inline in Ask), plus the count/percentage against the
+    /// whole eligible ticket pool, for the dedicated similar-tickets page.
+    /// </summary>
+    [HttpGet("similar-tickets")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
+    public async Task<ActionResult<SimilarTicketsResponseDto>> SimilarTickets([FromQuery] string query)
+    {
+        var stats = await ComputeSimilarTicketStatsAsync(query, includeAllMatches: true);
+        return Ok(new SimilarTicketsResponseDto(
+            stats.SimilarCount, stats.TotalEligible, stats.Percentage, stats.Matches.Select(ToDto).ToList()));
     }
 
     private static string BuildContextEntry(ChunkMatch m) =>
@@ -170,6 +238,7 @@ public class KnowledgeBaseController : ControllerBase
     }
 
     [HttpGet("documents")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<List<KnowledgeBaseDocumentDto>>> ListDocuments()
     {
         var docs = await _db.KnowledgeBaseDocuments.AsNoTracking()
@@ -195,7 +264,25 @@ public class KnowledgeBaseController : ControllerBase
     /// <summary>A retrieved source, either a resolved ticket or a chunk of uploaded documentation — exactly one of Ticket/Document is set.</summary>
     private record ChunkMatch(Ticket? Ticket, KnowledgeBaseDocument? Document, string Content, int Score);
 
-    private async Task<List<ChunkMatch>> FindMatchesAsync(string query, int take)
+    /// <summary>
+    /// The eligible-chunk filter, pushed all the way into SQL: a document chunk always qualifies; a ticket
+    /// chunk only qualifies once its internal notes total at least MinInternalNoteChars. Doing this as a
+    /// correlated subquery (rather than loading every chunk and filtering in memory) means disqualified
+    /// tickets — most of them, in a mature helpdesk — are never even fetched, let alone embedding-compared.
+    /// </summary>
+    private IQueryable<KnowledgeBaseChunk> EligibleChunksQuery(bool includeTicketSources)
+    {
+        var query = _db.KnowledgeBaseChunks.AsNoTracking();
+        if (!includeTicketSources)
+            return query.Where(c => c.DocumentId != null);
+
+        return query.Where(c => c.DocumentId != null || (c.TicketId != null &&
+            _db.TicketMessages
+                .Where(m => m.TicketId == c.TicketId && m.Type == MessageType.InternalNote)
+                .Sum(m => (int?)m.BodyHtml.Length) >= MinInternalNoteChars));
+    }
+
+    private async Task<List<ChunkMatch>> FindMatchesAsync(string query, int take, bool includeTicketSources)
     {
         if (string.IsNullOrWhiteSpace(query)) return new List<ChunkMatch>();
 
@@ -203,35 +290,29 @@ public class KnowledgeBaseController : ControllerBase
         var queryEmbedding = await _embeddingService.EmbedAsync(query);
         if (queryEmbedding is not null)
         {
-            var semanticMatches = await FindMatchesBySimilarityAsync(queryEmbedding, take);
+            var semanticMatches = await FindMatchesBySimilarityAsync(queryEmbedding, take, includeTicketSources);
             if (semanticMatches.Count > 0) return semanticMatches;
         }
 
         // Fallback: no embedding provider configured, or no chunk has an embedding yet.
-        return await FindMatchesByKeywordAsync(query, take);
+        return await FindMatchesByKeywordAsync(query, take, includeTicketSources);
     }
 
-    private async Task<List<ChunkMatch>> FindMatchesBySimilarityAsync(float[] queryEmbedding, int take)
+    private async Task<List<ChunkMatch>> FindMatchesBySimilarityAsync(float[] queryEmbedding, int take, bool includeTicketSources)
     {
-        // Scored in memory against the whole knowledge base (no pgvector index yet). A candidate cap here
-        // would silently hide older tickets/documents from search once the base grows past the cap —
-        // every embedded chunk needs to be a candidate for the ranking to be correct.
-        var candidates = await _db.KnowledgeBaseChunks.AsNoTracking()
-            .Where(c => c.Embedding != null && (c.TicketId != null || c.DocumentId != null))
+        // Eligibility (has a long-enough internal note, or is a document) is filtered in SQL via
+        // EligibleChunksQuery — only chunks that already qualify have their embedding pulled into memory.
+        var candidates = await EligibleChunksQuery(includeTicketSources)
+            .Where(c => c.Embedding != null)
             .Select(c => new { c.Content, c.TicketId, c.DocumentId, c.Embedding })
             .ToListAsync();
 
         if (candidates.Count == 0) return new List<ChunkMatch>();
 
-        var internalNoteLengths = await GetInternalNoteLengthByTicketAsync();
-
-        // Ticket chunks only qualify with an internal note (see below); document chunks always qualify —
-        // being uploaded as reference material already means it's meant to be used as an answer.
         var scored = candidates
-            .Where(c => c.DocumentId != null || (c.TicketId != null && internalNoteLengths.ContainsKey(c.TicketId.Value)))
             .Select(c => new { c.TicketId, c.DocumentId, c.Content, Similarity = CosineSimilarity(queryEmbedding, c.Embedding!) })
             .OrderByDescending(x => x.Similarity)
-            .Take(Math.Clamp(take, 1, 50))
+            .Take(Math.Clamp(take, 1, 500))
             // Within the relevant pool, the most substantial source (longest content) is listed first —
             // a proxy for "most thoroughly documented" that works the same way for both source types.
             .OrderByDescending(x => x.Content.Length)
@@ -240,15 +321,6 @@ public class KnowledgeBaseController : ControllerBase
         return await ResolveSourcesAsync(scored.Select(s => (s.TicketId, s.DocumentId, s.Content,
             Score: (int)MathF.Round(Math.Clamp(s.Similarity, 0f, 1f) * 100))));
     }
-
-    /// <summary>Total internal-note character count per ticket — a proxy for how thoroughly the
-    /// troubleshooting/fix was documented, used to decide which tickets qualify as a source.</summary>
-    private async Task<Dictionary<Guid, int>> GetInternalNoteLengthByTicketAsync() =>
-        await _db.TicketMessages.AsNoTracking()
-            .Where(m => m.Type == MessageType.InternalNote)
-            .GroupBy(m => m.TicketId)
-            .Select(g => new { TicketId = g.Key, Length = g.Sum(m => m.BodyHtml.Length) })
-            .ToDictionaryAsync(x => x.TicketId, x => x.Length);
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
@@ -264,7 +336,7 @@ public class KnowledgeBaseController : ControllerBase
         return dot / (MathF.Sqrt(magA) * MathF.Sqrt(magB));
     }
 
-    private async Task<List<ChunkMatch>> FindMatchesByKeywordAsync(string query, int take)
+    private async Task<List<ChunkMatch>> FindMatchesByKeywordAsync(string query, int take, bool includeTicketSources)
     {
         var keywords = query.ToLowerInvariant()
             .Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
@@ -273,21 +345,17 @@ public class KnowledgeBaseController : ControllerBase
             .ToList();
         if (keywords.Count == 0) return new List<ChunkMatch>();
 
-        var candidates = await _db.KnowledgeBaseChunks.AsNoTracking()
-            .Where(c => c.TicketId != null || c.DocumentId != null)
+        var candidates = await EligibleChunksQuery(includeTicketSources)
             .Select(c => new { c.Content, c.TicketId, c.DocumentId })
             .ToListAsync();
 
         if (candidates.Count == 0) return new List<ChunkMatch>();
 
-        var internalNoteLengths = await GetInternalNoteLengthByTicketAsync();
-
         var scored = candidates
-            .Where(c => c.DocumentId != null || (c.TicketId != null && internalNoteLengths.ContainsKey(c.TicketId.Value)))
             .Select(c => new { c.TicketId, c.DocumentId, c.Content, Score = keywords.Count(k => c.Content.Contains(k, StringComparison.OrdinalIgnoreCase)) })
             .Where(x => x.Score > 0)
             .OrderByDescending(x => x.Score)
-            .Take(Math.Clamp(take, 1, 50))
+            .Take(Math.Clamp(take, 1, 500))
             .OrderByDescending(x => x.Content.Length)
             .ToList();
 
@@ -319,6 +387,83 @@ public class KnowledgeBaseController : ControllerBase
                 results.Add(new ChunkMatch(null, document, s.Content, s.Score));
         }
         return results;
+    }
+
+    // ---------------- similar-tickets report ----------------
+
+    private record SimilarTicketStats(int SimilarCount, int TotalEligible, double Percentage, List<ChunkMatch> Matches);
+
+    /// <summary>
+    /// "How common is this problem" — scores every eligible ticket against the query and counts how many
+    /// clear the similarity threshold, against the total eligible pool. Ticket-only (documentation isn't
+    /// a "similar problem", it's reference material) so the percentage means what it says.
+    /// </summary>
+    private async Task<SimilarTicketStats> ComputeSimilarTicketStatsAsync(string query, bool includeAllMatches = false)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return new SimilarTicketStats(0, 0, 0, new List<ChunkMatch>());
+
+        var totalEligible = await EligibleChunksQuery(includeTicketSources: true).Where(c => c.TicketId != null).CountAsync();
+        if (totalEligible == 0) return new SimilarTicketStats(0, 0, 0, new List<ChunkMatch>());
+
+        var queryEmbedding = await _embeddingService.EmbedAsync(query);
+        List<ChunkMatch> matches;
+
+        if (queryEmbedding is not null)
+        {
+            var candidates = await EligibleChunksQuery(includeTicketSources: true)
+                .Where(c => c.TicketId != null && c.Embedding != null)
+                .Select(c => new { c.Content, c.TicketId, c.Embedding })
+                .ToListAsync();
+
+            var rawScores = candidates
+                .Select(c => new { c.TicketId, c.Content, Similarity = CosineSimilarity(queryEmbedding, c.Embedding!) })
+                .ToList();
+
+            if (rawScores.Count == 0)
+            {
+                matches = new List<ChunkMatch>();
+            }
+            else
+            {
+                var maxSim = rawScores.Max(x => x.Similarity);
+                var minSim = rawScores.Min(x => x.Similarity);
+                var cutoff = maxSim - (maxSim - minSim) * (float)SimilarityReportTopFraction;
+
+                var scored = rawScores
+                    .Where(x => x.Similarity >= cutoff)
+                    .Select(x => new { x.TicketId, x.Content, Score = (int)MathF.Round(Math.Clamp(x.Similarity, 0f, 1f) * 100) })
+                    .OrderByDescending(x => x.Score)
+                    .ToList();
+
+                matches = await ResolveSourcesAsync(scored.Select(s => ((Guid?)s.TicketId, (Guid?)null, s.Content, s.Score)));
+            }
+        }
+        else
+        {
+            var keywords = query.ToLowerInvariant()
+                .Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 2)
+                .Distinct()
+                .ToList();
+
+            var candidates = await EligibleChunksQuery(includeTicketSources: true)
+                .Where(c => c.TicketId != null)
+                .Select(c => new { c.Content, c.TicketId })
+                .ToListAsync();
+
+            // Keyword fallback "similar" bar: at least half of the query's keywords show up in the ticket.
+            var minMatches = Math.Max(1, keywords.Count / 2);
+            var scored = candidates
+                .Select(c => new { c.TicketId, c.Content, Matched = keywords.Count(k => c.Content.Contains(k, StringComparison.OrdinalIgnoreCase)) })
+                .Where(x => x.Matched >= minMatches)
+                .OrderByDescending(x => x.Matched)
+                .ToList();
+
+            matches = await ResolveSourcesAsync(scored.Select(s => ((Guid?)s.TicketId, (Guid?)null, s.Content, s.Matched)));
+        }
+
+        var percentage = totalEligible == 0 ? 0 : Math.Round(100.0 * matches.Count / totalEligible, 1);
+        return new SimilarTicketStats(matches.Count, totalEligible, percentage, includeAllMatches ? matches : matches.Take(50).ToList());
     }
 
     private static KnowledgeBaseSearchResultDto ToDto(ChunkMatch m) =>

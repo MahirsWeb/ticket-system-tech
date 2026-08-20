@@ -97,6 +97,13 @@ export interface KnowledgeBaseSearchResultDto {
   matchScore: number;
 }
 
+export interface SimilarTicketsResponseDto {
+  similarTicketCount: number;
+  totalEligibleTicketCount: number;
+  similarPercentage: number;
+  tickets: KnowledgeBaseSearchResultDto[];
+}
+
 export interface KnowledgeBaseDocumentDto {
   id: string;
   title: string;

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { knowledgeBaseApi } from '../../api/knowledgeBase';
 import type { KnowledgeBaseSearchResultDto } from '../../types';
 import { Button, Card, Input, Spinner, StatusBadge } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 const SOURCES_PREVIEW_COUNT = 7;
 
@@ -34,27 +36,53 @@ function SourceRow({ r }: { r: KnowledgeBaseSearchResultDto }) {
 }
 
 export function KnowledgeBaseSearchPanel({ initialQuery = '', alwaysOpen = false }: { initialQuery?: string; alwaysOpen?: boolean }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState(initialQuery);
+  const [askedQuery, setAskedQuery] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
   const [sources, setSources] = useState<KnowledgeBaseSearchResultDto[]>([]);
+  const [similarCount, setSimilarCount] = useState(0);
+  const [totalEligible, setTotalEligible] = useState(0);
+  const [similarPct, setSimilarPct] = useState(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(alwaysOpen);
   const [asked, setAsked] = useState(false);
   const [showAllSources, setShowAllSources] = useState(false);
+  const [confirmingStop, setConfirmingStop] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function handleAsk(e?: React.FormEvent) {
     e?.preventDefault();
     if (!query.trim()) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setAsked(true);
+    setAskedQuery(query);
     setShowAllSources(false);
     try {
-      const res = await knowledgeBaseApi.ask(query);
+      const res = await knowledgeBaseApi.ask(query, controller.signal);
       setAnswer(res.answer);
       setSources(res.sources);
+      setSimilarCount(res.similarTicketCount);
+      setTotalEligible(res.totalEligibleTicketCount);
+      setSimilarPct(res.similarPercentage);
+    } catch (err: any) {
+      if (err?.code !== 'ERR_CANCELED') throw err;
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
+  }
+
+  function requestStop() {
+    setConfirmingStop(true);
+  }
+
+  function confirmStop() {
+    abortRef.current?.abort();
+    setConfirmingStop(false);
+    setLoading(false);
   }
 
   if (!open) {
@@ -67,6 +95,16 @@ export function KnowledgeBaseSearchPanel({ initialQuery = '', alwaysOpen = false
 
   return (
     <Card className="p-5">
+      {confirmingStop && (
+        <ConfirmDialog
+          title="Stop the AI request?"
+          message="This will cancel the search that's currently in progress."
+          confirmLabel="Stop"
+          danger
+          onConfirm={confirmStop}
+          onCancel={() => setConfirmingStop(false)}
+        />
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">AI Assistant — Knowledge Base</h2>
         {!alwaysOpen && (
@@ -81,9 +119,13 @@ export function KnowledgeBaseSearchPanel({ initialQuery = '', alwaysOpen = false
       </p>
       <form onSubmit={handleAsk} className="mb-3 flex gap-2">
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Describe the problem in a few keywords…" />
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Thinking…' : 'Ask AI'}
-        </Button>
+        {loading ? (
+          <Button type="button" variant="danger" onClick={requestStop}>
+            Stop
+          </Button>
+        ) : (
+          <Button type="submit">Ask AI</Button>
+        )}
       </form>
 
       {loading && (
@@ -101,6 +143,25 @@ export function KnowledgeBaseSearchPanel({ initialQuery = '', alwaysOpen = false
             the knowledge base — it doesn't mean it's 100% relevant to use for this specific type of problem. Consult
             with a more experienced colleague before relying on it.
           </p>
+        </div>
+      )}
+
+      {!loading && asked && totalEligible > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-sm text-slate-700">
+            <span className="font-bold text-slate-900">
+              {similarCount} of {totalEligible} tickets ({similarPct}%)
+            </span>{' '}
+            look similar to this problem.
+          </div>
+          {similarCount > 0 && (
+            <button
+              className="text-xs font-medium text-blue-700 hover:underline"
+              onClick={() => navigate(`/knowledge-base/similar?query=${encodeURIComponent(askedQuery)}`)}
+            >
+              View the list &amp; stats →
+            </button>
+          )}
         </div>
       )}
 

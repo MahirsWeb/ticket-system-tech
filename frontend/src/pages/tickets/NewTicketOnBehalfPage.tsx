@@ -4,7 +4,7 @@ import { usersApi } from '../../api/users';
 import { lookupsApi } from '../../api/lookups';
 import { ticketsApi } from '../../api/tickets';
 import { emailIntegrationApi } from '../../api/emailIntegration';
-import type { ClientLookupResult, DepartmentItemFull, LookupItem, SlaPlanItem, SubBranchItemFull, TicketPriority, TicketSource } from '../../types';
+import type { ClientLookupResult, DepartmentItemFull, LookupItem, SlaPlanItem, SubBranchItemFull, TicketPriority, TicketSource, UserListItemDto } from '../../types';
 import { Button, Card, ErrorText, Input, Label, Select } from '../../components/ui';
 import { RichTextEditor } from '../../components/RichTextEditor';
 import { useAuthStore } from '../../store/authStore';
@@ -31,7 +31,9 @@ export default function NewTicketOnBehalfPage() {
   const [subBranches, setSubBranches] = useState<SubBranchItemFull[]>([]);
   const [slaPlans, setSlaPlans] = useState<SlaPlanItem[]>([]);
   const [categories, setCategories] = useState<LookupItem[]>([]);
-  const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
+  // Full employee roster (not branch-filtered) so picking an assignee can drive the branch selection,
+  // not just the other way around — see handleAssigneeChange / handleDepartmentChange below.
+  const [allEmployees, setAllEmployees] = useState<UserListItemDto[]>([]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -50,40 +52,77 @@ export default function NewTicketOnBehalfPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    Promise.all([lookupsApi.helpTopics(), lookupsApi.departments(), lookupsApi.slaPlans(), lookupsApi.ticketCategories()]).then(
-      ([topics, depts, slas, cats]) => {
-        setHelpTopics(topics);
-        setDepartments(depts);
-        setSlaPlans(slas);
-        setCategories(cats);
-        if (topics[0]) setHelpTopicId(topics[0].id);
-        if (isAdmin && depts[0]) setDepartmentId(depts[0].id);
-        if (slas[0]) setSlaPlanId(slas[0].id);
-      }
-    );
+    Promise.all([
+      lookupsApi.helpTopics(),
+      lookupsApi.departments(),
+      lookupsApi.slaPlans(),
+      lookupsApi.ticketCategories(),
+      usersApi.list({ role: 'Employee' }),
+    ]).then(([topics, depts, slas, cats, employees]) => {
+      setHelpTopics(topics);
+      setDepartments(depts);
+      setSlaPlans(slas);
+      setCategories(cats);
+      setAllEmployees(employees);
+      if (topics[0]) setHelpTopicId(topics[0].id);
+      if (isAdmin && depts[0]) setDepartmentId(depts[0].id);
+      if (slas[0]) setSlaPlanId(slas[0].id);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Refreshes the sub-branch list whenever the branch changes. If the currently assigned employee
+  // belongs to this branch, their sub-branch is pre-selected too (keeps them fully in sync rather
+  // than just clearing sub-branch on every branch change).
   useEffect(() => {
     if (!departmentId) {
       setSubBranches([]);
       setSubBranchId('');
       return;
     }
-    lookupsApi.subBranches(departmentId).then(setSubBranches);
-    setSubBranchId('');
+    lookupsApi.subBranches(departmentId).then((subs) => {
+      setSubBranches(subs);
+      const assignee = allEmployees.find((e) => e.id === assignedToUserId);
+      if (assignee?.departmentId === departmentId && assignee.subBranchId && subs.some((s) => s.id === assignee.subBranchId)) {
+        setSubBranchId(assignee.subBranchId);
+      } else {
+        setSubBranchId('');
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departmentId]);
 
-  useEffect(() => {
-    if (!departmentId) {
-      setAssignees([]);
-      return;
+  // Picking an assignee is the primary flow: their branch (and sub-branch) is adopted automatically.
+  // Only meaningful for Admin — non-admin staff have a fixed, non-editable branch, so their assignee
+  // list is scoped to their own branch below and never needs to drive a branch switch.
+  function handleAssigneeChange(userId: string) {
+    setAssignedToUserId(userId);
+    if (!isAdmin) return;
+    const employee = allEmployees.find((e) => e.id === userId);
+    if (employee?.departmentId && employee.departmentId !== departmentId) {
+      setDepartmentId(employee.departmentId);
     }
-    setAssignedToUserId('');
-    usersApi.list({ role: 'Employee', departmentId, subBranchId: subBranchId || undefined }).then((employees) => {
-      setAssignees(employees.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}` })));
-    });
-  }, [departmentId, subBranchId]);
+  }
+
+  // Manually changing the branch only clears the assignee if they don't actually belong to the
+  // newly selected branch — picking the same branch the assignee is already in keeps them selected.
+  function handleDepartmentChange(newDepartmentId: string) {
+    setDepartmentId(newDepartmentId);
+    const assignee = allEmployees.find((e) => e.id === assignedToUserId);
+    if (assignee && assignee.departmentId !== newDepartmentId) {
+      setAssignedToUserId('');
+    }
+  }
+
+  // Admin can assign across any branch (picking the assignee drives the branch — see above);
+  // non-admin staff can only assign within their own fixed branch.
+  const assignableEmployees = isAdmin ? allEmployees : allEmployees.filter((e) => e.departmentId === user?.departmentId);
+  const employeesByDepartment = new Map<string, UserListItemDto[]>();
+  for (const emp of assignableEmployees) {
+    const key = emp.departmentId ?? '';
+    if (!employeesByDepartment.has(key)) employeesByDepartment.set(key, []);
+    employeesByDepartment.get(key)!.push(emp);
+  }
 
   useEffect(() => {
     if (!fromEmailMessageId) return;
@@ -262,7 +301,7 @@ export default function NewTicketOnBehalfPage() {
               <div>
                 <Label>Branch</Label>
                 {isAdmin ? (
-                  <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                  <Select value={departmentId} onChange={(e) => handleDepartmentChange(e.target.value)}>
                     <option value="">Select a branch…</option>
                     {departments.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -320,13 +359,21 @@ export default function NewTicketOnBehalfPage() {
               </div>
               <div>
                 <Label>Assign to</Label>
-                <Select value={assignedToUserId} onChange={(e) => setAssignedToUserId(e.target.value)}>
+                <Select value={assignedToUserId} onChange={(e) => handleAssigneeChange(e.target.value)}>
                   <option value="">Select an agent…</option>
-                  {assignees.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
+                  {departments.map((d) => {
+                    const deptEmployees = employeesByDepartment.get(d.id) ?? [];
+                    if (deptEmployees.length === 0) return null;
+                    return (
+                      <optgroup key={d.id} label={d.name}>
+                        {deptEmployees.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.firstName} {e.lastName}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </Select>
               </div>
               <div>

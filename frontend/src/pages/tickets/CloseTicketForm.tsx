@@ -5,7 +5,6 @@ import { Button, Card, ErrorText, Label, Textarea } from '../../components/ui';
 
 export function CloseTicketForm({ ticket, onClosed }: { ticket: TicketDetailDto; onClosed: (t: TicketDetailDto) => void }) {
   const [resolutionSummary, setResolutionSummary] = useState('');
-  const [technicalNotes, setTechnicalNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +17,7 @@ export function CloseTicketForm({ ticket, onClosed }: { ticket: TicketDetailDto;
     }
     setLoading(true);
     try {
-      const updated = await ticketsApi.close(ticket.id, resolutionSummary, technicalNotes || undefined);
+      const updated = await ticketsApi.close(ticket.id, resolutionSummary);
       onClosed(updated);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not close the ticket.');
@@ -34,10 +33,6 @@ export function CloseTicketForm({ ticket, onClosed }: { ticket: TicketDetailDto;
         <div>
           <Label>Resolution summary *</Label>
           <Textarea rows={4} value={resolutionSummary} onChange={(e) => setResolutionSummary(e.target.value)} placeholder="What was the issue and how was it resolved?" />
-        </div>
-        <div>
-          <Label>Technical / code-change log (optional)</Label>
-          <Textarea rows={3} value={technicalNotes} onChange={(e) => setTechnicalNotes(e.target.value)} placeholder="Record any code changes or technical steps taken…" />
         </div>
         <ErrorText>{error}</ErrorText>
         <Button type="submit" variant="danger" disabled={loading}>

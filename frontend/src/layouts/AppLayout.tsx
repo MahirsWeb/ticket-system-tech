@@ -3,32 +3,37 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { NotificationBell } from '../components/NotificationBell';
 import { PhoneNumberBanner } from '../components/PhoneNumberBanner';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { useLanguage } from '../i18n/LanguageContext';
 import { ticketsApi } from '../api/tickets';
 import type { TicketCountsDto } from '../types';
 import clsx from 'clsx';
 
-const NAV_BY_ROLE: Record<string, { to: string; label: string; ticketsDropdown?: boolean }[]> = {
-  Admin: [
-    { to: '/', label: 'Dashboard' },
-    { to: '/tickets', label: 'Tickets', ticketsDropdown: true },
-    { to: '/tasks', label: 'Task' },
-    { to: '/ai-assistant', label: 'AI Assistant' },
-    { to: '/users', label: 'Users' },
-    { to: '/settings', label: 'Settings' },
-  ],
-  Employee: [
-    { to: '/', label: 'Dashboard' },
-    { to: '/tickets', label: 'Tickets', ticketsDropdown: true },
-    { to: '/tasks', label: 'Task' },
-    { to: '/ai-assistant', label: 'AI Assistant' },
-    { to: '/emails', label: 'Emails' },
-    { to: '/users', label: 'Clients' },
-  ],
-  Client: [
-    { to: '/tickets', label: 'My Tickets', ticketsDropdown: true },
-    { to: '/tickets/new', label: 'Submit a Ticket' },
-  ],
-};
+function useNavByRole(): Record<string, { to: string; label: string; ticketsDropdown?: boolean }[]> {
+  const { t } = useLanguage();
+  return {
+    Admin: [
+      { to: '/', label: t('nav_dashboard') },
+      { to: '/tickets', label: t('nav_tickets'), ticketsDropdown: true },
+      { to: '/tasks', label: t('nav_task') },
+      { to: '/ai-assistant', label: t('nav_aiAssistant') },
+      { to: '/users', label: t('nav_users') },
+      { to: '/settings', label: t('nav_settings') },
+    ],
+    Employee: [
+      { to: '/', label: t('nav_dashboard') },
+      { to: '/tickets', label: t('nav_tickets'), ticketsDropdown: true },
+      { to: '/tasks', label: t('nav_task') },
+      { to: '/ai-assistant', label: t('nav_aiAssistant') },
+      { to: '/emails', label: t('nav_emails') },
+      { to: '/users', label: t('nav_clients') },
+    ],
+    Client: [
+      { to: '/tickets', label: t('nav_myTickets'), ticketsDropdown: true },
+      { to: '/tickets/new', label: t('nav_submitTicket') },
+    ],
+  };
+}
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   clsx(
@@ -39,6 +44,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function TicketsNavItem({ to, label }: { to: string; label: string }) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const { t } = useLanguage();
   const [counts, setCounts] = useState<TicketCountsDto | null>(null);
 
   function load() {
@@ -51,10 +57,10 @@ function TicketsNavItem({ to, label }: { to: string; label: string }) {
 
   const rows: { label: string; value: number | undefined; status?: string; mine?: boolean }[] = [
     { label, value: counts?.total },
-    ...(user?.role === 'Employee' ? [{ label: 'My tickets', value: counts?.mine, status: 'Open,InProgress,Resolved', mine: true }] : []),
-    { label: 'Opened', value: counts?.opened, status: 'Open,InProgress,Resolved' },
-    { label: 'Closed', value: counts?.closed, status: 'Closed' },
-    { label: 'New', value: counts?.new, status: 'New' },
+    ...(user?.role === 'Employee' ? [{ label: t('nav_myTicketsCount'), value: counts?.mine, status: 'Open,InProgress,Resolved', mine: true }] : []),
+    { label: t('nav_opened'), value: counts?.opened, status: 'Open,InProgress,Resolved' },
+    { label: t('nav_closed'), value: counts?.closed, status: 'Closed' },
+    { label: t('nav_new'), value: counts?.new, status: 'New' },
   ];
 
   // Rendered as a plain sibling of the other nav items — same tag, same classes — so it lines up
@@ -106,16 +112,19 @@ export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const navByRole = useNavByRole();
 
   if (!user) return null;
-  const nav = NAV_BY_ROLE[user.role] ?? [];
+  const nav = navByRole[user.role] ?? [];
 
   return (
     <div className="min-h-screen bg-slate-200">
       <header className="border-b border-slate-300 bg-[#1a2b4c]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="text-lg font-bold text-white">Ticket System Tech</div>
+          <div className="text-lg font-bold text-white">{t('appName')}</div>
           <div className="flex items-center gap-4">
+            <LanguageSwitcher dark />
             <div className="hidden text-right text-xs text-slate-300 sm:block">
               <div className="font-semibold text-white">
                 {user.firstName} {user.lastName}
@@ -130,7 +139,7 @@ export default function AppLayout() {
               }}
               className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-white/10"
             >
-              Sign out
+              {t('signOut')}
             </button>
           </div>
         </div>

@@ -37,8 +37,6 @@ public class KnowledgeBaseIndexer : IKnowledgeBaseIndexer
             sb.AppendLine(StripHtml(note));
         if (!string.IsNullOrWhiteSpace(ticket.ResolutionSummary))
             sb.AppendLine(ticket.ResolutionSummary);
-        if (!string.IsNullOrWhiteSpace(ticket.TechnicalNotes))
-            sb.AppendLine(ticket.TechnicalNotes);
 
         var content = sb.ToString().Trim();
         if (content.Length == 0) return;

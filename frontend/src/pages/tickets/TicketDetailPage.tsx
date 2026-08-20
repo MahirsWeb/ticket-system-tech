@@ -15,6 +15,7 @@ import { TicketAssigneesPanel } from './TicketAssigneesPanel';
 import { WorkTimeEditor } from './WorkTimeEditor';
 import { ClientInfoPopover } from '../../components/ClientInfoPopover';
 import { KnowledgeBaseSearchPanel } from './KnowledgeBaseSearchPanel';
+import { ClientAiHelpPanel } from './ClientAiHelpPanel';
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -143,12 +144,6 @@ export default function TicketDetailPage() {
         <Card className="p-5">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Resolution</h2>
           <p className="whitespace-pre-wrap text-sm text-slate-800">{ticket.resolutionSummary}</p>
-          {canSeeInternalNotes && ticket.technicalNotes && (
-            <div className="mt-3 rounded-md bg-slate-50 p-3">
-              <div className="mb-1 text-xs font-semibold uppercase text-slate-400">Technical / code-change log</div>
-              <p className="whitespace-pre-wrap text-sm text-slate-700">{ticket.technicalNotes}</p>
-            </div>
-          )}
           {canReopen && (
             <button
               type="button"
@@ -163,6 +158,7 @@ export default function TicketDetailPage() {
       )}
 
       {canSeeInternalNotes && <KnowledgeBaseSearchPanel initialQuery={ticket.title} />}
+      {!canSeeInternalNotes && <ClientAiHelpPanel initialQuery={ticket.title} />}
 
       {canOpen && <OpenTicketForm ticket={ticket} onOpened={setTicket} />}
 

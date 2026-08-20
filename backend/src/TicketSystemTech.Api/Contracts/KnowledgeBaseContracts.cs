@@ -8,7 +8,17 @@ public record KnowledgeBaseAskRequest(
 
 public record KnowledgeBaseAskResponseDto(
     string Answer,
-    List<KnowledgeBaseSearchResultDto> Sources
+    List<KnowledgeBaseSearchResultDto> Sources,
+    int SimilarTicketCount,
+    int TotalEligibleTicketCount,
+    double SimilarPercentage
+);
+
+public record SimilarTicketsResponseDto(
+    int SimilarTicketCount,
+    int TotalEligibleTicketCount,
+    double SimilarPercentage,
+    List<KnowledgeBaseSearchResultDto> Tickets
 );
 
 // A match can come from a resolved ticket or an uploaded documentation file — the ticket-only

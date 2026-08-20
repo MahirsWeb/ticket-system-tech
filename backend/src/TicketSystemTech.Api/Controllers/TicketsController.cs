@@ -21,6 +21,7 @@ public class TicketsController : ControllerBase
     private readonly IEmailSender _emailSender;
     private readonly INotificationPublisher _notificationPublisher;
     private readonly IKnowledgeBaseIndexer _knowledgeBaseIndexer;
+    private readonly IPiiProtector _piiProtector;
 
     public TicketsController(
         AppDbContext db,
@@ -28,7 +29,8 @@ public class TicketsController : ControllerBase
         ITicketNumberGenerator ticketNumberGenerator,
         IEmailSender emailSender,
         INotificationPublisher notificationPublisher,
-        IKnowledgeBaseIndexer knowledgeBaseIndexer)
+        IKnowledgeBaseIndexer knowledgeBaseIndexer,
+        IPiiProtector piiProtector)
     {
         _db = db;
         _currentUser = currentUser;
@@ -36,6 +38,7 @@ public class TicketsController : ControllerBase
         _emailSender = emailSender;
         _notificationPublisher = notificationPublisher;
         _knowledgeBaseIndexer = knowledgeBaseIndexer;
+        _piiProtector = piiProtector;
     }
 
     [HttpPost]
@@ -98,7 +101,8 @@ public class TicketsController : ControllerBase
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Employee)}")]
     public async Task<ActionResult<TicketDetailDto>> CreateOnBehalf(CreateTicketOnBehalfRequest request)
     {
-        var client = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == request.ClientEmail.ToUpperInvariant() && u.Role == UserRole.Client);
+        var clientEmailHash = _piiProtector.Hash(request.ClientEmail);
+        var client = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == clientEmailHash && u.Role == UserRole.Client);
         if (client is null) return NotFound(new { message = "No client account found with that email." });
         if (client.CompanyId is null) return BadRequest(new { message = "This client is not linked to a company." });
 

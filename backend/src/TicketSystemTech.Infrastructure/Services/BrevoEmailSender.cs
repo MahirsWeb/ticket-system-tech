@@ -15,20 +15,22 @@ public class BrevoEmailSender : IEmailSender
     private readonly IConfiguration _configuration;
     private readonly ILogger<BrevoEmailSender> _logger;
     private readonly AppDbContext _db;
+    private readonly IPiiProtector _piiProtector;
 
-    public BrevoEmailSender(HttpClient httpClient, IConfiguration configuration, ILogger<BrevoEmailSender> logger, AppDbContext db)
+    public BrevoEmailSender(HttpClient httpClient, IConfiguration configuration, ILogger<BrevoEmailSender> logger, AppDbContext db, IPiiProtector piiProtector)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
         _db = db;
+        _piiProtector = piiProtector;
     }
 
     public async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
     {
         // Centralized guard: an inactive account's mailbox no longer receives anything from the app,
         // regardless of which flow triggered the send (ticket update, task assignment, invite, ...).
-        var normalizedEmail = toEmail.ToUpperInvariant();
+        var normalizedEmail = _piiProtector.Hash(toEmail);
         var recipientIsInactive = await _db.Users.AnyAsync(u => u.NormalizedEmail == normalizedEmail && !u.IsActive, ct);
         if (recipientIsInactive)
         {
