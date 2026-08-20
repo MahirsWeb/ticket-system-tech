@@ -63,20 +63,32 @@ public static class PiiBackfillMigration
         }
 
         logger.LogWarning("PII backfill: encrypting Email/UserName/PhoneNumber for {Count} AspNetUsers row(s)...", toMigrate.Count);
+        var failures = 0;
         foreach (var u in toMigrate)
         {
-            await using var cmd = connection.CreateCommand();
-            cmd.CommandText = "UPDATE \"AspNetUsers\" SET \"Email\" = @email, \"UserName\" = @userName, \"PhoneNumber\" = @phone, " +
-                               "\"NormalizedEmail\" = @normEmail, \"NormalizedUserName\" = @normUserName WHERE \"Id\" = @id";
-            cmd.Parameters.AddWithValue("@email", (object?)piiProtector.Encrypt(u.Email) ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@userName", (object?)piiProtector.Encrypt(u.UserName) ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@phone", (object?)piiProtector.Encrypt(u.PhoneNumber) ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@normEmail", (object?)piiProtector.Hash(u.Email) ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@normUserName", (object?)piiProtector.Hash(u.UserName) ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@id", u.Id);
-            await cmd.ExecuteNonQueryAsync(ct);
+            try
+            {
+                await using var cmd = connection.CreateCommand();
+                cmd.CommandText = "UPDATE \"AspNetUsers\" SET \"Email\" = @email, \"UserName\" = @userName, \"PhoneNumber\" = @phone, " +
+                                   "\"NormalizedEmail\" = @normEmail, \"NormalizedUserName\" = @normUserName WHERE \"Id\" = @id";
+                cmd.Parameters.AddWithValue("@email", (object?)piiProtector.Encrypt(u.Email) ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@userName", (object?)piiProtector.Encrypt(u.UserName) ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@phone", (object?)piiProtector.Encrypt(u.PhoneNumber) ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@normEmail", (object?)piiProtector.Hash(u.Email) ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@normUserName", (object?)piiProtector.Hash(u.UserName) ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@id", u.Id);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            catch (PostgresException ex)
+            {
+                // Don't let one bad row (e.g. a pre-existing duplicate Email/UserName that only collides
+                // once normalized) take down the whole app on startup — log it for manual follow-up and
+                // keep going. The row stays plaintext and gets retried on the next startup.
+                failures++;
+                logger.LogError(ex, "PII backfill: failed to encrypt AspNetUsers row {UserId} — left as plaintext for manual review.", u.Id);
+            }
         }
-        logger.LogWarning("PII backfill: AspNetUsers encryption complete ({Count} row(s)).", toMigrate.Count);
+        logger.LogWarning("PII backfill: AspNetUsers encryption complete ({Count} row(s), {Failures} failed).", toMigrate.Count - failures, failures);
     }
 
     private static async Task BackfillCompanyAddressesAsync(NpgsqlConnection connection, IPiiProtector piiProtector, ILogger logger, CancellationToken ct)
@@ -105,14 +117,23 @@ public static class PiiBackfillMigration
         }
 
         logger.LogWarning("PII backfill: encrypting Address for {Count} Companies row(s)...", toMigrate.Count);
+        var failures = 0;
         foreach (var c in toMigrate)
         {
-            await using var cmd = connection.CreateCommand();
-            cmd.CommandText = "UPDATE \"Companies\" SET \"Address\" = @address WHERE \"Id\" = @id";
-            cmd.Parameters.AddWithValue("@address", piiProtector.Encrypt(c.Address)!);
-            cmd.Parameters.AddWithValue("@id", c.Id);
-            await cmd.ExecuteNonQueryAsync(ct);
+            try
+            {
+                await using var cmd = connection.CreateCommand();
+                cmd.CommandText = "UPDATE \"Companies\" SET \"Address\" = @address WHERE \"Id\" = @id";
+                cmd.Parameters.AddWithValue("@address", piiProtector.Encrypt(c.Address)!);
+                cmd.Parameters.AddWithValue("@id", c.Id);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            catch (PostgresException ex)
+            {
+                failures++;
+                logger.LogError(ex, "PII backfill: failed to encrypt Companies.Address row {CompanyId} — left as plaintext for manual review.", c.Id);
+            }
         }
-        logger.LogWarning("PII backfill: Companies.Address encryption complete ({Count} row(s)).", toMigrate.Count);
+        logger.LogWarning("PII backfill: Companies.Address encryption complete ({Count} row(s), {Failures} failed).", toMigrate.Count - failures, failures);
     }
 }
