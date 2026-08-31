@@ -16,6 +16,6 @@ public class KnowledgeBaseChunk : BaseEntity
 
     public string Content { get; set; } = string.Empty;
 
-    /// <summary>Embedding vector (mapped to a pgvector column in Infrastructure).</summary>
+    /// <summary>Embedding vector (stored as JSON in Infrastructure — see AppDbContext).</summary>
     public float[]? Embedding { get; set; }
 }

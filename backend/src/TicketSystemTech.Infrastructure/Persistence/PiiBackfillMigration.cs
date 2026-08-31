@@ -1,6 +1,6 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using TicketSystemTech.Application.Common.Interfaces;
 
 namespace TicketSystemTech.Infrastructure.Persistence;
@@ -18,7 +18,7 @@ public static class PiiBackfillMigration
 {
     public static async Task RunAsync(AppDbContext db, IPiiProtector piiProtector, ILogger logger, CancellationToken ct = default)
     {
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        var connection = (SqlConnection)db.Database.GetDbConnection();
         var ownsConnection = connection.State != System.Data.ConnectionState.Open;
         if (ownsConnection) await connection.OpenAsync(ct);
 
@@ -33,13 +33,13 @@ public static class PiiBackfillMigration
         }
     }
 
-    private static async Task BackfillUsersAsync(NpgsqlConnection connection, IPiiProtector piiProtector, ILogger logger, CancellationToken ct)
+    private static async Task BackfillUsersAsync(SqlConnection connection, IPiiProtector piiProtector, ILogger logger, CancellationToken ct)
     {
         var toMigrate = new List<(Guid Id, string? Email, string? UserName, string? PhoneNumber)>();
 
         await using (var cmd = connection.CreateCommand())
         {
-            cmd.CommandText = "SELECT \"Id\", \"Email\", \"UserName\", \"PhoneNumber\" FROM \"AspNetUsers\"";
+            cmd.CommandText = "SELECT [Id], [Email], [UserName], [PhoneNumber] FROM [AspNetUsers]";
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -69,8 +69,8 @@ public static class PiiBackfillMigration
             try
             {
                 await using var cmd = connection.CreateCommand();
-                cmd.CommandText = "UPDATE \"AspNetUsers\" SET \"Email\" = @email, \"UserName\" = @userName, \"PhoneNumber\" = @phone, " +
-                                   "\"NormalizedEmail\" = @normEmail, \"NormalizedUserName\" = @normUserName WHERE \"Id\" = @id";
+                cmd.CommandText = "UPDATE [AspNetUsers] SET [Email] = @email, [UserName] = @userName, [PhoneNumber] = @phone, " +
+                                   "[NormalizedEmail] = @normEmail, [NormalizedUserName] = @normUserName WHERE [Id] = @id";
                 cmd.Parameters.AddWithValue("@email", (object?)piiProtector.Encrypt(u.Email) ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@userName", (object?)piiProtector.Encrypt(u.UserName) ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@phone", (object?)piiProtector.Encrypt(u.PhoneNumber) ?? DBNull.Value);
@@ -79,7 +79,7 @@ public static class PiiBackfillMigration
                 cmd.Parameters.AddWithValue("@id", u.Id);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
-            catch (PostgresException ex)
+            catch (SqlException ex)
             {
                 // Don't let one bad row (e.g. a pre-existing duplicate Email/UserName that only collides
                 // once normalized) take down the whole app on startup — log it for manual follow-up and
@@ -91,13 +91,13 @@ public static class PiiBackfillMigration
         logger.LogWarning("PII backfill: AspNetUsers encryption complete ({Count} row(s), {Failures} failed).", toMigrate.Count - failures, failures);
     }
 
-    private static async Task BackfillCompanyAddressesAsync(NpgsqlConnection connection, IPiiProtector piiProtector, ILogger logger, CancellationToken ct)
+    private static async Task BackfillCompanyAddressesAsync(SqlConnection connection, IPiiProtector piiProtector, ILogger logger, CancellationToken ct)
     {
         var toMigrate = new List<(Guid Id, string Address)>();
 
         await using (var cmd = connection.CreateCommand())
         {
-            cmd.CommandText = "SELECT \"Id\", \"Address\" FROM \"Companies\" WHERE \"Address\" IS NOT NULL";
+            cmd.CommandText = "SELECT [Id], [Address] FROM [Companies] WHERE [Address] IS NOT NULL";
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -123,12 +123,12 @@ public static class PiiBackfillMigration
             try
             {
                 await using var cmd = connection.CreateCommand();
-                cmd.CommandText = "UPDATE \"Companies\" SET \"Address\" = @address WHERE \"Id\" = @id";
+                cmd.CommandText = "UPDATE [Companies] SET [Address] = @address WHERE [Id] = @id";
                 cmd.Parameters.AddWithValue("@address", piiProtector.Encrypt(c.Address)!);
                 cmd.Parameters.AddWithValue("@id", c.Id);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
-            catch (PostgresException ex)
+            catch (SqlException ex)
             {
                 failures++;
                 logger.LogError(ex, "PII backfill: failed to encrypt Companies.Address row {CompanyId} — left as plaintext for manual review.", c.Id);

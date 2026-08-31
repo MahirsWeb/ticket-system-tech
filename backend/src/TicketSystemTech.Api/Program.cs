@@ -46,7 +46,7 @@ var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? ne
 
 // ---- Database ----
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Encrypts PII columns (email, phone, address) at rest. Must be registered as a singleton — see
 // PiiProtector's doc comment — and the custom ILookupNormalizer must be registered before AddIdentity()

@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TicketSystemTech.Application.Common.Interfaces;
 using TicketSystemTech.Domain.Entities;
@@ -134,7 +136,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
         builder.Entity<TicketAttachment>(e =>
         {
-            e.HasOne(a => a.Message).WithMany(m => m.Attachments).HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.Cascade);
+            // NoAction: TicketAttachments.TicketId already cascades from Tickets directly (covers every
+            // attachment, message-tied or not — MessageId is nullable for attachments on the original
+            // submission). SQL Server refuses a second cascade path to the same table via TicketMessages,
+            // and there's no codepath that deletes a single message without deleting its ticket anyway.
+            e.HasOne(a => a.Message).WithMany(m => m.Attachments).HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.NoAction);
         });
 
         builder.Entity<Notification>(e =>
@@ -146,6 +152,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         {
             e.HasOne(c => c.Document).WithMany(d => d.Chunks).HasForeignKey(c => c.DocumentId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(c => c.Ticket).WithMany().HasForeignKey(c => c.TicketId).OnDelete(DeleteBehavior.Cascade);
+
+            // SQL Server has no native float-array column type (unlike Postgres' real[]), so the
+            // embedding is stored as a JSON string instead. Similarity is already computed in C# after
+            // loading matches into memory (see KnowledgeBaseController), never pushed down to SQL, so
+            // this doesn't change any query semantics.
+            var embeddingConverter = new ValueConverter<float[]?, string?>(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => v == null ? null : JsonSerializer.Deserialize<float[]>(v, (JsonSerializerOptions?)null));
+            var embeddingComparer = new ValueComparer<float[]?>(
+                (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+                v => v == null ? 0 : v.Aggregate(0, (h, f) => HashCode.Combine(h, f)),
+                v => v == null ? null : (float[])v.Clone());
+            e.Property(c => c.Embedding).HasConversion(embeddingConverter, embeddingComparer);
         });
 
         builder.Entity<EmailConnection>(e =>
@@ -168,7 +187,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         {
             e.Property(s => s.Name).HasMaxLength(150).IsRequired();
             e.HasIndex(s => new { s.DepartmentId, s.Name }).IsUnique();
-            e.HasOne(s => s.Department).WithMany().HasForeignKey(s => s.DepartmentId).OnDelete(DeleteBehavior.Cascade);
+            // NoAction rather than Cascade: SQL Server refuses to create the AspNetUsers.SubBranchId ->
+            // SubBranches (SetNull) constraint if this path could also cascade-delete through Departments
+            // (multiple cascade paths reaching AspNetUsers). There's no sub-branch deletion endpoint
+            // anyway — DeleteDepartment blocks while sub-branches still exist instead (see LookupsController).
+            e.HasOne(s => s.Department).WithMany().HasForeignKey(s => s.DepartmentId).OnDelete(DeleteBehavior.NoAction);
         });
 
         builder.Entity<WorkTask>(e =>

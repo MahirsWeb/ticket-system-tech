@@ -140,6 +140,10 @@ public class LookupsController : ControllerBase
         if (taskCount > 0)
             return BadRequest(new { message = $"This branch still has {taskCount} task(s) assigned to it. Reassign or complete them first." });
 
+        var subBranchCount = await _db.SubBranches.CountAsync(s => s.DepartmentId == id);
+        if (subBranchCount > 0)
+            return BadRequest(new { message = $"This branch still has {subBranchCount} sub-branch(es). Remove them first." });
+
         _db.Departments.Remove(entity);
         await _db.SaveChangesAsync();
         return NoContent();
